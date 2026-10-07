@@ -34,8 +34,7 @@ jobs:
       YOUTUBE_API_KEY: ""
       GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
       API_LEVEL: ${{ matrix.api }}
-      # Disable host DMA readback: API 37's goldfish mapper cannot consume that extension.
-      EMULATOR_GRAPHICS: ${{ matrix.api == '37.0' && '-gpu software -feature -GLDirectMem,-GLDMA,-GLDMA2,-HasSharedSlotsHostMemoryAllocator' || '-gpu swiftshader_indirect' }}
+      EMULATOR_GRAPHICS: ${{ matrix.api == '37.0' && '-gpu software' || '-gpu swiftshader_indirect' }}
       TEST_FILTER: ${{ github.event.inputs.test_filter }}
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +86,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-pixel_6-8gb-graphics-v5
+          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-pixel_6-8gb-graphics-v4
 
       - name: Create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'

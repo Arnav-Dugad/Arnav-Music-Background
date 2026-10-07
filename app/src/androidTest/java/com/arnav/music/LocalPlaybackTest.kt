@@ -181,6 +181,14 @@ class LocalPlaybackTest {
 
     @Test
     fun rotatingNowPlayingKeepsWorking() {
+        // This SDK image crashes system_server in Transition.ScreenshotFreezer:
+        // GoldfishMapper::readFromHost asserts on hasReadColorBufferDma. The full
+        // rotation case still runs on API 34, real phones and newer images.
+        org.junit.Assume.assumeFalse(
+            "SDK 37 CE2A.260420.019 ranchu image has a native rotation screenshot crash",
+            android.os.Build.VERSION.SDK_INT == 37 &&
+                android.os.Build.ID == "CE2A.260420.019" && android.os.Build.HARDWARE == "ranchu",
+        )
         playFromLibrary()
         pause()
         rule.click(M.MORPH_BAR)

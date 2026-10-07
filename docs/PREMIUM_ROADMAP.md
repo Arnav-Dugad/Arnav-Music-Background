@@ -55,3 +55,14 @@ No empty premium switches or simulated audio features are presented as completed
 Device-specific One UI visibility and streamed YouTube playback still require a phone check.
 
 The app compiles/targets Android 17 (API 37), uses Media3 1.11.1, and runs emulator checks on API 34 and 37. Generated widget picker previews are gated to Android 15+; Android 12–14 use scalable XML previews. Artwork is decoded at bounded sizes for RemoteViews memory limits.
+
+### Android 17 emulator limitation
+
+The SDK 37 `CE2A.260420.019` ranchu image aborts `system_server` in
+`Transition.ScreenshotFreezer` / `GoldfishMapper::readFromHost` when the display rotates.
+The rotation test is skipped only for that exact emulator build; the same case runs on API 34,
+real phones and newer images. All other API 37 cases remain required. CI uses three-button
+navigation and disables emulator recent-task snapshots to avoid the same mapper bug in other
+system screenshot paths. These workarounds are not packaged in the app, and normal hidden API
+enforcement is restored before tests. Physical One UI notification visibility and live YouTube
+streams still require a phone check.
