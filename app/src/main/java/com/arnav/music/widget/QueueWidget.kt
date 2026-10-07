@@ -101,7 +101,10 @@ class QueueWidget : GlanceAppWidget() {
                         Text(if (s.upNext.isEmpty()) EMPTY else "${s.upNext.size} queued · resize to see songs", style = TextStyle(color = p.body, fontSize = 12.sp), maxLines = 1)
                     }
                 } else {
-                    items.forEach { item -> QueueRow(context, item, p) }
+                    // Glance containers support at most ten direct children.
+                    Column(GlanceModifier.fillMaxWidth()) {
+                        items.forEach { item -> QueueRow(context, item, p) }
+                    }
                 }
             }
         }

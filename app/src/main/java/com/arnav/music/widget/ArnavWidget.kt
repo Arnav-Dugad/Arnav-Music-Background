@@ -175,11 +175,13 @@ internal fun TransportButtons(context: Context, s: WidgetSnapshot) {
 @Composable
 internal fun WidgetProgress(s: WidgetSnapshot) {
     val p = widgetPalette()
-    LinearProgressIndicator(progress = if (s.durationMs > 0) (s.positionMs.toFloat() / s.durationMs).coerceIn(0f, 1f) else 0f,
-        modifier = GlanceModifier.fillMaxWidth().height(3.dp), color = p.accent, backgroundColor = p.row)
-    Row(GlanceModifier.fillMaxWidth().padding(top = 3.dp)) {
-        Text(Formatters.duration(s.positionMs), style = TextStyle(color = p.faint, fontSize = 10.sp), modifier = GlanceModifier.defaultWeight())
-        Text(Formatters.duration(s.durationMs), style = TextStyle(color = p.faint, fontSize = 10.sp))
+    Column(GlanceModifier.fillMaxWidth()) {
+        LinearProgressIndicator(progress = if (s.durationMs > 0) (s.positionMs.toFloat() / s.durationMs).coerceIn(0f, 1f) else 0f,
+            modifier = GlanceModifier.fillMaxWidth().height(3.dp), color = p.accent, backgroundColor = p.row)
+        Row(GlanceModifier.fillMaxWidth().padding(top = 3.dp)) {
+            Text(Formatters.duration(s.positionMs), style = TextStyle(color = p.faint, fontSize = 10.sp), modifier = GlanceModifier.defaultWeight())
+            Text(Formatters.duration(s.durationMs), style = TextStyle(color = p.faint, fontSize = 10.sp))
+        }
     }
 }
 

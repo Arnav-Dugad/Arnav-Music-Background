@@ -36,7 +36,7 @@ class WidgetLayoutTest {
         WidgetBus.publish(context, WidgetSnapshot(
             "A very long song title that must stay inside the widget", "An artist with a very long name",
             null, true, true, true,
-            listOf(WidgetQueueItem(1, 1L, "The next very long song title", "Another long artist name", true)),
+            (1..3).map { index -> WidgetQueueItem(index, index.toLong(), "Next song $index with a very long title", "Another long artist name", true) },
             61000L, 240000L,
         ))
         WidgetBus.publishLyric(WidgetLyric(WidgetLyric.State.SYNCED, "A very long song title", "Artist",
@@ -76,6 +76,7 @@ class WidgetLayoutTest {
                 View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
             host.layout(0, 0, width, height)
             var textCount = 0
+            val texts = mutableListOf<String>()
             fun visit(child: View) {
                 if (child.visibility != View.VISIBLE) return
                 if (child is TextView || child is ImageView) {
@@ -85,6 +86,7 @@ class WidgetLayoutTest {
                     assertTrue("Clipped widget content: $label", bounds.left >= -1 && bounds.top >= -1 && bounds.right <= width + 1 && bounds.bottom <= height + 1)
                     if (child is TextView && child.text.isNotBlank()) {
                         textCount++
+                        texts += child.text.toString()
                         assertTrue("Hidden widget text: $label", child.width > 0 && child.height > 0)
                     }
                 }
@@ -92,6 +94,14 @@ class WidgetLayoutTest {
             }
             visit(view)
             assertTrue("Widget must contain song text", textCount > 0)
+            val expected = if (widget is LyricsWidget) "A long lyric line which wraps onto the next line"
+                else "A very long song title that must stay inside the widget"
+            assertTrue("Widget must show its real content, not an error layout: $texts", expected in texts)
+            if (widget is QueueWidget && size.height.value >= 280f) {
+                val rows = if (size.height.value >= 340f) 3 else 1
+                for (index in 1..rows) assertTrue("Queue row $index must survive RemoteViews translation: $texts",
+                    "Next song $index with a very long title" in texts)
+            }
         }
     }
 }
