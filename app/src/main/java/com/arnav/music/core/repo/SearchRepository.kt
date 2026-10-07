@@ -66,7 +66,7 @@ class SearchRepository(
         emit(SearchState.Instant(query, local))
         val parsed = com.arnav.music.domain.search.LibraryQuery.parse(query)
         if (parsed.structured) {
-            if (parsed.error != null) emit(SearchState.Failed(query, MusicError.Unknown(parsed.error), local))
+            parsed.error?.let { message -> emit(SearchState.Failed(query, MusicError.Unknown(message), local)) }
             return@flow
         }
         val cached = youtube.cached(query, filter)

@@ -80,7 +80,7 @@ class CloudSync(
     fun startObserving() {
         if (observing || !gate.isAvailable) return
         observing = true
-        db.invalidationTracker.addObserver(object : androidx.room.InvalidationTracker.Observer(*com.arnav.music.core.backup.UserDataArchive.TABLES.toTypedArray()) {
+        db.invalidationTracker.addObserver(object : androidx.room.InvalidationTracker.Observer(com.arnav.music.core.backup.UserDataArchive.TABLES.toTypedArray()) {
             override fun onInvalidated(tables: Set<String>) { requestSync(30_000) }
         })
         scope.launch { settings.settings.collect { requestSync(30_000) } }

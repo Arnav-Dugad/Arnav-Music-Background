@@ -67,18 +67,7 @@ service cloud.firestore {
       match /vaultChunks/{chunkId} {
         allow read, delete: if isOwner(uid);
         allow create: if isOwner(uid)
-          && chunkId.matches('^[0-9a-f]{64}
-      match /{rest=**} {
-        allow read, write: if false;
-      }
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)
+          && chunkId.matches('^[0-9a-f]{64}$')
           && onlyKeys(['hash', 'payload', 'bytes', 'schema', 'createdAt'])
           && request.resource.data.hash == chunkId
           && str(request.resource.data.payload, 409600)
@@ -91,30 +80,8 @@ service cloud.firestore {
         allow create: if isOwner(uid)
           && onlyKeys(['schema', 'roomVersion', 'deviceId', 'deviceLabel', 'appVersion', 'createdAt', 'publishedAt', 'hash', 'bytes', 'chunkIds', 'counts'])
           && request.resource.data.schema == 1 && request.resource.data.roomVersion == 6
-          && request.resource.data.deviceId.matches('^[0-9a-f-]{36}
-      match /{rest=**} {
-        allow read, write: if false;
-      }
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)
-          && request.resource.data.hash.matches('^[0-9a-f]{64}
-      match /{rest=**} {
-        allow read, write: if false;
-      }
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)
+          && request.resource.data.deviceId.matches('^[0-9a-f-]{36}$')
+          && request.resource.data.hash.matches('^[0-9a-f]{64}$')
           && backupId == request.resource.data.deviceId + '_' + request.resource.data.hash
           && str(request.resource.data.deviceLabel, 100) && str(request.resource.data.appVersion, 40)
           && ts(request.resource.data.createdAt) && request.resource.data.publishedAt == request.time
@@ -142,18 +109,7 @@ service cloud.firestore {
       match /devices/{deviceId} {
         allow read, delete: if isOwner(uid);
         allow create, update: if isOwner(uid)
-          && deviceId.matches('^[0-9a-f-]{36}
-      match /{rest=**} {
-        allow read, write: if false;
-      }
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
-)
+          && deviceId.matches('^[0-9a-f-]{36}$')
           && onlyKeys(['deviceLabel', 'appVersion', 'latestBackup', 'updatedAt', 'schema'])
           && str(request.resource.data.deviceLabel, 100) && str(request.resource.data.appVersion, 40)
           && str(request.resource.data.latestBackup, 110)
