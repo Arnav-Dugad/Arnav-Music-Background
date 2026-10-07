@@ -91,8 +91,10 @@ class LocalCrossfade(
         }
         val current = player.currentMediaItem ?: return
         val next = player.getMediaItemAt(player.nextMediaItemIndex)
-        val duration = Crossfade.duration(settings.settings.value.crossfadeMs, player.duration,
-            playback.state.value.queue.items.getOrNull(playback.state.value.queue.currentIndex + 1)?.track?.durationMs ?: player.duration)
+        val queue = playback.state.value.queue
+        val nextTrack = queue.items.getOrNull(if (queue.hasNext) queue.currentIndex + 1 else 0)?.track
+        val nextDuration = nextTrack?.takeIf { it.id.value == next.mediaId }?.durationMs ?: player.duration
+        val duration = Crossfade.duration(settings.settings.value.crossfadeMs, player.duration, nextDuration)
         if (duration < 250) return
         val remaining = player.duration - player.currentPosition
         if (remaining <= duration + 3_000 && preparedId != current.mediaId) {
