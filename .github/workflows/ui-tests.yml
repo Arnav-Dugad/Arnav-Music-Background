@@ -24,7 +24,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [34, 37]
+        # Android 17 SDK/system-image package IDs include the minor version.
+        api: ["34", "37.0"]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
