@@ -23,7 +23,8 @@ val localProps = Properties().apply {
 fun secret(name: String): String =
     (System.getenv(name) ?: localProps.getProperty(name) ?: "").trim()
 
-val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+// Imported repos start their Actions counter at 1: keep updates newer than original builds.
+val ciRunNumber = 1000 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
 
 android {
     namespace = "com.arnav.music"
@@ -45,7 +46,7 @@ android {
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${secret("GOOGLE_WEB_CLIENT_ID")}\"")
         buildConfigField("boolean", "FIREBASE_CONFIGURED", hasGoogleServices.toString())
         // Self-update source: this repository's GitHub Releases (forks update from themselves).
-        buildConfigField("String", "UPDATE_REPO", "\"${System.getenv("GITHUB_REPOSITORY") ?: "Arnav-Dugad/Arnav-Music"}\"")
+        buildConfigField("String", "UPDATE_REPO", "\"${System.getenv("GITHUB_REPOSITORY") ?: "Arnav-Dugad/Arnav-Music-Background"}\"")
     }
 
     signingConfigs {

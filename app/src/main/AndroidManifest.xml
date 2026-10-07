@@ -66,6 +66,11 @@
         </activity>
 
         <service
+            android:name=".core.playback.YouTubePlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <service
             android:name=".core.playback.PlaybackService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">

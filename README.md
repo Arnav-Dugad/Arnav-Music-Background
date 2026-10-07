@@ -1,7 +1,11 @@
 <div align="center">
 
-# Arnav Music
+# Arnav Music — Background edition
 **Music, alive.**
+
+This independent copy adds experimental YouTube background playback, a media notification, lock-screen/headset controls and artwork in Song mode. Video mode displays the video. [Download the latest APK](https://github.com/Arnav-Dugad/Arnav-Music-Background/releases/latest).
+
+Hidden/background IFrame playback is contrary to YouTube API policies. This edition is not policy-compliant, and YouTube or Android/WebView changes can break it. No stream extraction, downloading or ad blocking is added. See [background edition setup and validation](docs/BACKGROUND_PLAYBACK.md).
 
 A premium, local-first Android music experience: YouTube discovery through official APIs, your own on-device library with full background playback, and an on-device intelligence layer called **Arnav AI**.
 
@@ -38,7 +42,7 @@ Arnav Music is an **independent** app that combines:
 
 | Source | How it plays | Background playback |
 |---|---|---|
-| **YouTube** (search, trending, playlists) | Official embedded **YouTube IFrame player**, always visible, ads and attribution intact | No — YouTube's terms don't allow hidden playback. One tap hands off to YouTube Music. |
+| **YouTube** (search, trending, playlists) | Official embedded **YouTube IFrame player**, always visible, ads and attribution intact | Experimental — service-owned IFrame with a media notification; contrary to YouTube API policies. |
 | **Your device** (MP3, FLAC, M4A, OGG, WAV… via MediaStore) | Native **Media3/ExoPlayer** | Yes — notification, lock screen, Bluetooth, headset, gapless |
 
 Everything around playback — library, history, recommendations, Taste DNA, Moments, Arnav AI — works the same for both, because the UI only talks to a source-agnostic `PlaybackController` and reads `PlaybackCapabilities`.
@@ -203,7 +207,7 @@ Download the APK from [Releases](../../releases/latest) and install it (Android 
 Requirements: JDK 17+, Android Studio (Ladybug or newer) or the command line with the Android SDK (compileSdk 36).
 
 ```bash
-git clone https://github.com/Arnav-Dugad/Arnav-Music.git
+git clone https://github.com/Arnav-Dugad/Arnav-Music-Background.git
 cd Arnav-Music
 ./gradlew :core:domain:test :app:testDebugUnitTest   # unit tests
 ./gradlew :app:assembleDebug                         # debug APK
@@ -241,11 +245,12 @@ Without a private key, releases are signed with the **public community key** in 
 - Settings → Privacy shows all of this and lets you clear search history, listening history, AI personalization, disconnect YouTube, delete the cloud profile, or delete the account.
 - The user-supplied API key is encrypted with an Android Keystore AES-256-GCM key and excluded from backups. HTTPS only.
 
-## YouTube policy compliance
-Arnav Music **does not**: extract stream URLs, use yt-dlp or similar, separate audio from video, block or hide ads, remove attribution, download YouTube content, play YouTube hidden or in the background, spoof clients, or use private YouTube Music endpoints. Playback uses the official IFrame player, always visible at ≥ 200 × 200 px, paused when the app goes to the background. Arnav's own controls drive it through the official IFrame API. For cover-art uploads (a still image in a 16:9 frame) the player is framed square, so the empty letterbox bars sit outside the frame while the picture stays fully visible and playing. YouTube data is shown with a YouTube attribution badge. Arnav Music is not affiliated with Google or YouTube.
+## YouTube policy status
+
+This background edition uses the IFrame player with background playback enabled and hides the video behind artwork in Song mode. Those changes conflict with YouTube API policies. YouTube search and import continue using the existing API client. No stream extraction, downloads, client spoofing or ad blocking is added. Firebase configuration and security checks remain in place. Arnav Music is not affiliated with Google or YouTube.
 
 ## Known limitations
-- YouTube playback stops when the app is backgrounded (by design; one-tap handoff to YouTube Music).
+- Background playback depends on the embedded player and Android WebView. It has not been verified on every device; Android may end it after a force-stop or process kill.
 - Play Integrity only vouches for installs from Google Play, so App Check can't verify an APK from GitHub, and Firebase requires App Check for AI Logic from 2 November 2026. For your own phone, turn on Settings → Arnav AI → *Verify with a debug token* and register the token in Firebase console → App Check → Apps → ⋮ → Manage debug tokens. Keep the token private.
 - “Energy” and “style” hints for YouTube tracks are estimated from public titles/tags and are labelled as estimates.
 - AI lyrics and auto-timing can be wrong. Gemini's copyright filter often refuses well-known commercial songs, and auto-timing without on-device analysis (YouTube) is an estimate. Use *Adjust timing* to fix it.

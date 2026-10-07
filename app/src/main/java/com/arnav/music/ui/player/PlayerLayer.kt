@@ -111,7 +111,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -210,7 +209,7 @@ fun PlayerLayer(
     val haptics = ArnavTheme.haptics
     val isYouTube = track.source == SourceType.YOUTUBE
     // Cover-art uploads ("Topic" art tracks) are a square image inside a 16:9 frame: show them square.
-    val squareArt = isYouTube && track.variant == com.arnav.music.domain.model.MediaVariant.SONG && settings.cropArtTracks
+    val squareArt = isYouTube && track.variant != com.arnav.music.domain.model.MediaVariant.VIDEO
     val wideVideo = isYouTube && !squareArt
     var immersive by rememberSaveable { mutableStateOf(false) }
     var queueOpen by rememberSaveable { mutableStateOf(false) }
@@ -588,7 +587,9 @@ fun PlayerLayer(
                         contentAlignment = Alignment.Center,
                     ) {
                         val sideDp = with(density) { surfH.toDp() }
-                        YouTubeSurface(youtube, if (squareArt) Modifier.requiredSize(sideDp * (16f / 9f), sideDp) else Modifier.fillMaxSize())
+                        YouTubeSurface(youtube, (if (squareArt) Modifier.requiredSize(sideDp * (16f / 9f), sideDp) else Modifier.fillMaxSize())
+                            .graphicsLayer { alpha = if (squareArt) 0f else 1f })
+                        if (squareArt) TrackArtwork(track, state.queue.currentIndex, Modifier.fillMaxSize())
                     }
                 } else {
                     TrackArtwork(
@@ -948,27 +949,12 @@ private fun TrackArtwork(
     }
 }
 
-/** One persistent official IFrame player. Lifecycle-aware: it stops when the app is hidden. */
+/** Attach the service-owned view; UI disposal must not stop the background song. */
 @Composable
 private fun YouTubeSurface(engine: YouTubeEngine, modifier: Modifier) {
-    val context = LocalContext.current
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val view = remember {
-        YouTubePlayerView(context).apply {
-            enableAutomaticInitialization = false
-            initialize(engine.listener, true, // Origin https://<package> identifies this app to YouTube (required for embeds; avoids error 152/153).
-            IFramePlayerOptions.Builder(context).controls(0).fullscreen(0).rel(0).ivLoadPolicy(3).build())
-        }
-    }
-    DisposableEffect(lifecycle) {
-        lifecycle.addObserver(view)
-        onDispose {
-            lifecycle.removeObserver(view)
-            engine.detach()
-            view.release()
-        }
-    }
-    AndroidView(factory = { view }, modifier = modifier.background(Color.Black))
+    AndroidView(factory = {
+        engine.playerView().also { view -> (view.parent as? android.view.ViewGroup)?.removeView(view) }
+    }, modifier = modifier.background(Color.Black))
 }
 
 @Composable
@@ -1155,7 +1141,7 @@ private fun NowPlayingContent(
                                 ) {
                                     Icon(Icons.Rounded.Visibility, null, tint = muted, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(Space.s))
-                                    Text("YouTube plays while Arnav Music is open or floating. Continue in YouTube Music for background listening.", style = ArnavTheme.type.caption, color = muted, modifier = Modifier.weight(1f))
+                                    Text("Background playback enabled. Song mode shows artwork; Video mode shows the video. Tap to open YouTube Music.", style = ArnavTheme.type.caption, color = muted, modifier = Modifier.weight(1f))
                                     Icon(Icons.Rounded.OpenInNew, "Open in YouTube Music", tint = on, modifier = Modifier.size(18.dp))
                                 }
                             }

@@ -4,9 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -156,15 +154,6 @@ class PlaybackController(
     init {
         youtube.events = this
         restoreQueue()
-        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStop(owner: LifecycleOwner) {
-                // YouTube embeds may not play hidden. Pause honestly and explain.
-                if (_state.value.engine == Engine.YOUTUBE && _state.value.isPlaying) {
-                    youtube.pause()
-                    _state.update { it.copy(isPlaying = false, issue = PlaybackIssue.YouTubePausedInBackground) }
-                }
-            }
-        })
     }
 
     // region Public API
@@ -512,8 +501,8 @@ class PlaybackController(
     // region Endless radio
     //
     // When the queue runs out and Settings › Endless radio is on, ~10 recommendations seeded from the
-    // queue so far are appended and playback continues. YouTube rules hold: songs are only queued,
-    // and YouTube plays only in the visible in-app player — while the app is in the background just
+    // queue so far are appended and playback continues. The background edition can keep an
+    // existing YouTube session playing; local-only sessions continue to prefer local picks.
     // songs on this device are added (none → playback simply stops, as before).
 
     private val intelligence: IntelligenceRepository by lazy { GlobalContext.get().get<IntelligenceRepository>() }
@@ -530,7 +519,7 @@ class PlaybackController(
         radioJob = scope.launch {
             val background = !ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
             val picks = runCatching {
-                intelligence.endlessRadio(recent.takeLast(25), recent.map { it.id }.toSet(), localOnly = background)
+                intelligence.endlessRadio(recent.takeLast(25), recent.map { it.id }.toSet(), localOnly = background && s.engine != Engine.YOUTUBE)
             }.getOrDefault(emptyList())
             val now = _state.value
             // The listener moved on meanwhile (picked something, cleared the queue): leave it alone.

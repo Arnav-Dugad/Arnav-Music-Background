@@ -98,7 +98,7 @@ val appModule = module {
     }
     single { AiGateway(get(), get(), get(), get<ArnavDatabase>().aiCache(), get(), get()) }
     single { IntelligenceRepository(get(), get(), get(), get(), get(), get()) }
-    single { YouTubeEngine() }
+    single { YouTubeEngine(androidContext()) }
     single { com.arnav.music.core.update.UpdateManager(androidContext(), get(), get()) }
     single { com.arnav.music.core.youtube.UploadResolver(get()) }
     single { com.arnav.music.core.youtube.YouTubeImporter(get(), get(), get()) }

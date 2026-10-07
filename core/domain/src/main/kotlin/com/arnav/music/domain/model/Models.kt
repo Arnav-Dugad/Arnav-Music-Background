@@ -120,8 +120,8 @@ data class PlaybackCapabilities(
             backgroundPlayback = true, requiresVisiblePlayer = false,
             supportsCrossfade = true, supportsSpeed = true, supportsEqualizer = true,
         )
-        /** YouTube embeds must stay visible; ads/attribution remain untouched. */
-        val YouTubeEmbed = PlaybackCapabilities(backgroundPlayback = false, requiresVisiblePlayer = true)
+        /** Experimental GitHub background edition; IFrame playback remains unchanged. */
+        val YouTubeEmbed = PlaybackCapabilities(backgroundPlayback = true, requiresVisiblePlayer = false)
     }
 }
 

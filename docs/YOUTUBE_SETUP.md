@@ -1,3 +1,7 @@
+# Background edition note
+
+This copy enables background IFrame playback and shows artwork instead of the player in Song mode. Those features conflict with the YouTube policies cited below; the upstream compliance checklist is not a description of this edition. Existing API key setup is unchanged. See [BACKGROUND_PLAYBACK.md](BACKGROUND_PLAYBACK.md).
+
 # YouTube Data API setup (free)
 
 Arnav Music uses **only public data** from the YouTube Data API v3 with an API key, and the **official embedded player** for playback. No OAuth scopes are requested — there is no YouTube account access at all, which keeps it simple and private.

@@ -46,7 +46,8 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch {
                 combine(player.state, settingsRepo.settings) { st, set ->
                     PipSpec(
-                        enabled = set.floatingPlayer && st.isPlaying && st.current != null,
+                        enabled = set.floatingPlayer && st.isPlaying && st.current != null &&
+                            (st.current?.source != SourceType.YOUTUBE || st.current?.variant == com.arnav.music.domain.model.MediaVariant.VIDEO),
                         playing = st.isPlaying,
                         video = st.current?.source == SourceType.YOUTUBE &&
                             !(set.cropArtTracks && st.current?.variant == com.arnav.music.domain.model.MediaVariant.SONG),
