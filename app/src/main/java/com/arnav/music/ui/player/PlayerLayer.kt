@@ -351,7 +351,7 @@ fun PlayerLayer(
         val px = { dp: Float -> dp * density.density }
 
         // ---- MorphBar geometry ----
-        val miniArtH = if (isYouTube) max(px(56f), 201f) else px(48f)
+        val miniArtH = if (wideVideo) max(px(56f), 201f) else px(48f)
         val miniArtW = if (wideVideo) miniArtH * 16f / 9f else miniArtH
         val barH = miniArtH + px(16f)
         val barLeft = contentLeftPx + px(8f)
@@ -380,7 +380,7 @@ fun PlayerLayer(
         }
         // Lyrics mode (phones): the cover/video tucks into the top-left corner. YouTube stays ≥ 200 px tall.
         val lt = if (wide || pip) 0f else lyricsT
-        val lyricArtH = if (isYouTube) max(px(72f), 201f) else px(60f)
+        val lyricArtH = if (wideVideo) max(px(72f), 201f) else px(60f)
         val lyricScale = lyricArtH / fullH
         val lyricLeft = px(24f)
         val lyricTop = statusTop + px(66f)
@@ -586,8 +586,9 @@ fun PlayerLayer(
                         Modifier.fillMaxSize().observeDoubleTaps(seekHere, seekTaps) { d, fx, fy -> seekStep(d, fx, fy) },
                         contentAlignment = Alignment.Center,
                     ) {
-                        val sideDp = with(density) { surfH.toDp() }
-                        YouTubeSurface(youtube, (if (squareArt) Modifier.requiredSize(sideDp * (16f / 9f), sideDp) else Modifier.fillMaxSize())
+                        // Keep the hidden WebView at a stable usable size while artwork morphs
+                        // down to the same compact mini-player used for local songs.
+                        YouTubeSurface(youtube, (if (squareArt) Modifier.requiredSize(356.dp, 200.dp) else Modifier.fillMaxSize())
                             .graphicsLayer { alpha = if (squareArt) 0f else 1f })
                         if (squareArt) TrackArtwork(track, state.queue.currentIndex, Modifier.fillMaxSize())
                     }

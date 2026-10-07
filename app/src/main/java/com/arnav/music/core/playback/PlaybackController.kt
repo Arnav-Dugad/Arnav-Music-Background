@@ -352,8 +352,11 @@ class PlaybackController(
                 }
             }
             SourceType.YOUTUBE -> {
-                controller?.pause()
                 _state.update { it.copy(engine = Engine.YOUTUBE, capabilities = PlaybackCapabilities.YouTubeEmbed, isBuffering = true, isPlaying = autoplay) }
+                // Remove the old local session's playable item and notification. Its transport
+                // controls must not start a second source behind the current YouTube queue.
+                controller?.stop()
+                controller?.clearMediaItems()
                 _progress.value = Progress(0, track.durationMs ?: 0)
                 youtube.load(track.playbackRef, 0f, autoplay)
             }
