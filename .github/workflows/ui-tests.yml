@@ -34,6 +34,8 @@ jobs:
       YOUTUBE_API_KEY: ""
       GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
       API_LEVEL: ${{ matrix.api }}
+      # API 37's goldfish mapper asserts when the host advertises DMA readback.
+      EMULATOR_GRAPHICS: ${{ matrix.api == '37.0' && '-gpu software -feature -HasSharedSlotsHostMemoryAllocator' || '-gpu swiftshader_indirect' }}
       TEST_FILTER: ${{ github.event.inputs.test_filter }}
     steps:
       - uses: actions/checkout@v4
@@ -75,7 +77,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-pixel_6-8gb-v2
+          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-pixel_6-8gb-graphics-v3
 
       - name: Create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -87,10 +89,14 @@ jobs:
           profile: pixel_6
           disk-size: 8192M
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window ${{ env.EMULATOR_GRAPHICS }} -noaudio -no-boot-anim -camera-back none
           disable-animations: false
+          cores: 4
+          ram-size: 4096M
           emulator-boot-timeout: 900
-          script: echo "Generated AVD snapshot for caching."
+          script: |
+            if [ "$API_LEVEL" = "37.0" ]; then adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton && adb shell cmd overlay disable com.android.internal.systemui.navbar.gestural; fi
+            echo "Generated AVD snapshot for caching."
 
       # Each script line runs in its own `sh -c`; a failing line would abort the rest, so the test run
       # records failure in a marker file and logcat is always collected while the emulator is still up.
@@ -104,13 +110,15 @@ jobs:
           profile: pixel_6
           disk-size: 8192M
           force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-snapshot-save -no-window ${{ env.EMULATOR_GRAPHICS }} -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           cores: 4
           ram-size: 4096M
           emulator-boot-timeout: 900
           script: |
             mkdir -p ui-test-logs && rm -f ui-test-logs/FAILED
+            # Keep System UI enabled while avoiding the image's gesture-bar RegionSampling crash.
+            if [ "$API_LEVEL" = "37.0" ]; then adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton && adb shell cmd overlay disable com.android.internal.systemui.navbar.gestural; fi
             adb logcat -G 16M || true
             adb logcat -c || true
             # Slow CI emulators show "System UI isn't responding" dialogs that steal key events.
