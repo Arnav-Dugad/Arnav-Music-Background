@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Never back up the encrypted secret store: its Keystore key can't travel with it. -->
+    <exclude domain="sharedpref" path="secure_store.xml" />
+    <exclude domain="sharedpref" path="sync_state.xml" />
+</full-backup-content>

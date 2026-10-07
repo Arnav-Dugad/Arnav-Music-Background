@@ -1,0 +1,27 @@
+# Hand-written baseline profile: startup, home composition, player morph and lists.
+HSPLcom/arnav/music/ArnavApp;->onCreate()V
+HSPLcom/arnav/music/MainActivity;->onCreate(Landroid/os/Bundle;)V
+Lcom/arnav/music/ui/ArnavRootKt;
+HSPLcom/arnav/music/ui/ArnavRootKt;->**(**)**
+Lcom/arnav/music/ui/theme/**;
+HSPLcom/arnav/music/ui/theme/**;->**(**)**
+Lcom/arnav/music/ui/components/**;
+HSPLcom/arnav/music/ui/components/**;->**(**)**
+Lcom/arnav/music/ui/player/**;
+HSPLcom/arnav/music/ui/player/**;->**(**)**
+Lcom/arnav/music/feature/home/**;
+HSPLcom/arnav/music/feature/home/**;->**(**)**
+Lcom/arnav/music/core/settings/**;
+HSPLcom/arnav/music/core/settings/**;->**(**)**
+Lcom/arnav/music/core/playback/**;
+HSPLcom/arnav/music/core/playback/**;->**(**)**
+Lcom/arnav/music/domain/**;
+HSPLcom/arnav/music/domain/**;->**(**)**
+Landroidx/compose/runtime/**;
+HSPLandroidx/compose/runtime/**;->**(**)**
+Landroidx/compose/ui/**;
+HSPLandroidx/compose/ui/**;->**(**)**
+Landroidx/compose/foundation/**;
+HSPLandroidx/compose/foundation/**;->**(**)**
+Landroidx/compose/animation/**;
+HSPLandroidx/compose/animation/**;->**(**)**

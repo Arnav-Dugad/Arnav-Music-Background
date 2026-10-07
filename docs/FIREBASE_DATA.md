@@ -64,7 +64,7 @@ Run from the repository root, using your Firebase administrator account:
 ```bash
 npm install -g firebase-tools
 firebase login
-firebase deploy --only firestore:rules,firestore:indexes --project YOUR_FIREBASE_PROJECT_ID
+firebase deploy --only firestore:rules,firestore:indexes --project arnav-music-c8ca5
 ```
 
 Use the project_id in app/google-services.json (or the config supplied by your Actions secret).

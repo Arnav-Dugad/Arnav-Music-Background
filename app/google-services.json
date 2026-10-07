@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "974076367492",
+    "project_id": "arnav-music-c8ca5",
+    "storage_bucket": "arnav-music-c8ca5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:974076367492:android:57b7d259fed484ff40a8d1",
+        "android_client_info": {
+          "package_name": "com.arnav.music"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "974076367492-ls9984j541n76c1tsv42dlklfk2ab2ri.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.arnav.music",
+            "certificate_hash": "795340c73d76a02a0fdc226ac32ee722a5060fb8"
+          }
+        },
+        {
+          "client_id": "974076367492-hart0sq50j5knd46le3gro64cje241h1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdmqN4gjJA49He4HbMZn0-3j7qB82Dtv8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "974076367492-hart0sq50j5knd46le3gro64cje241h1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,19 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+**/build/
+/captures
+.externalNativeBuild
+.cxx
+.kotlin/
+# Credentials never belong in git
+# google-services.json is committed on purpose: it only holds the public Android client
+# config (also embedded in every APK). Security comes from Firestore rules + App Check.
+*.keystore
+!keystore/arnav-public.jks
+secrets.properties
+.env
+service-account*.json
