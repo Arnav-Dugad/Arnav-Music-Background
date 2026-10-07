@@ -20,7 +20,11 @@ concurrency:
 
 jobs:
   instrumented:
-    name: Instrumented tests (API 34 emulator)
+    name: Instrumented tests (API ${{ matrix.api }} emulator)
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [34, 37]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -28,7 +32,7 @@ jobs:
       # No YouTube key in UI tests: runs stay deterministic and never spend the daily quota.
       YOUTUBE_API_KEY: ""
       GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
-      API_LEVEL: 34
+      API_LEVEL: ${{ matrix.api }}
       TEST_FILTER: ${{ github.event.inputs.test_filter }}
     steps:
       - uses: actions/checkout@v4
@@ -200,7 +204,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ui-test-reports-${{ github.run_number }}
+          name: ui-test-reports-${{ github.run_number }}-api-${{ matrix.api }}
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/

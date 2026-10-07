@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="250dp"
-    android:minHeight="180dp"
+    android:minWidth="220dp"
+    android:minHeight="220dp"
     android:targetCellWidth="4"
     android:targetCellHeight="3"
-    android:minResizeWidth="250dp"
-    android:minResizeHeight="180dp"
+    android:minResizeWidth="220dp"
+    android:minResizeHeight="220dp"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen|keyguard"
     android:updatePeriodMillis="0"
     android:description="@string/queue_widget_description"
+    android:previewLayout="@layout/arnav_widget_preview"
     android:initialLayout="@layout/glance_default_loading_layout" />

@@ -42,7 +42,7 @@ fun CloudDataPage(vm: SettingsViewModel) {
     }
     LaunchedEffect(user?.uid) { if (user != null) vm.refreshBackups() }
     Column {
-        SettingsGroup(footer = "Likes and YouTube playlist entries merge across devices. Full backups preserve every app database table, settings, queue, lyrics and saved analysis. Restore other data explicitly below. Local audio files and sign-in/API credentials are excluded.") {
+        SettingsGroup(footer = "Likes, playlists, individual listening records and preferences sync automatically. YouTube-only queues sync when playback is idle; local file queues stay on their device. Different preference fields merge independently; the last committed edit wins for the same field. Full snapshots run at most hourly, or when requested, and preserve the remaining app data. Local audio files and sign-in/API credentials are excluded.") {
             ToggleRow("Cloud sync & backup", s.cloudSync, { v -> vm.update { it.copy(cloudSync = v) } },
                 if (user == null) "Sign in to back up your data" else "Signed in as " + (user?.email ?: "you"), enabled = vm.cloudAvailable)
             Divider()

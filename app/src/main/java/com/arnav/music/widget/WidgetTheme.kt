@@ -41,6 +41,24 @@ object Widgets {
     /** Observed by running widget compositions (Glance doesn't re-run provideGlance for a live session). */
     internal val materialYou: StateFlow<Boolean> = _materialYou.asStateFlow()
 
+    /** Personalized picker previews on Android 15+, with no artwork bitmap payload. */
+    fun publishPreviews(context: Context) {
+        if (Build.VERSION.SDK_INT < 35) return
+        val prefs = context.getSharedPreferences("widget_previews", Context.MODE_PRIVATE)
+        if (System.currentTimeMillis() - prefs.getLong("published", 0L) < 60 * 60_000L) return
+        val manager = android.appwidget.AppWidgetManager.getInstance(context)
+        val snapshot = WidgetBus.current(context)
+        val preview = android.widget.RemoteViews(context.packageName, com.arnav.music.R.layout.arnav_widget_preview)
+        preview.setTextViewText(com.arnav.music.R.id.widget_preview_title, snapshot.title ?: "Arnav Music")
+        preview.setTextViewText(com.arnav.music.R.id.widget_preview_subtitle, snapshot.artist ?: "Your music, within reach")
+        var accepted = false
+        listOf(ArnavWidgetReceiver::class.java, QueueWidgetReceiver::class.java).forEach { receiver ->
+            accepted = runCatching { manager.setWidgetPreview(android.content.ComponentName(context, receiver),
+                android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN, preview) }.getOrDefault(false) || accepted
+        }
+        if (accepted) prefs.edit().putLong("published", System.currentTimeMillis()).apply()
+    }
+
     /**
      * Reads `AppSettings.widgetMaterialYou` for [androidx.glance.appwidget.GlanceAppWidget.provideGlance].
      * Right after a cold start it waits (at most 1 s) for the first DataStore read so a widget doesn't

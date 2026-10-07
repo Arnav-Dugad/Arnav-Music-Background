@@ -3,11 +3,12 @@
     android:minWidth="180dp"
     android:minHeight="64dp"
     android:targetCellWidth="4"
-    android:targetCellHeight="2"
+    android:targetCellHeight="3"
     android:minResizeWidth="180dp"
     android:minResizeHeight="64dp"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen|keyguard"
     android:updatePeriodMillis="0"
     android:description="@string/widget_description"
+    android:previewLayout="@layout/arnav_widget_preview"
     android:initialLayout="@layout/glance_default_loading_layout" />

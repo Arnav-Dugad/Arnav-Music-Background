@@ -264,9 +264,11 @@ fun PlayerLayer(
     } else null
     val coverScale = { coverRest * (1f + 0.014f * (breath?.value ?: 0f)) }
 
-    fun animateTo(target: Float) = scope.launch {
+    val playerSpec: AnimationSpec<Float> = if (motion.reduced) motion.responsive()
+        else spring(dampingRatio = 0.88f, stiffness = 320f, visibilityThreshold = 0.0005f)
+    fun animateTo(target: Float, velocity: Float = 0f) = scope.launch {
         if (target == 1f) haptics.navigate()
-        expand.animateTo(target, motion.cinematic())
+        expand.animateTo(target, playerSpec, initialVelocity = velocity.coerceIn(-8f, 8f))
     }
 
     val queueSpec: AnimationSpec<Float> =
@@ -345,9 +347,9 @@ fun PlayerLayer(
     ) {
         val W = constraints.maxWidth.toFloat()
         val H = constraints.maxHeight.toFloat()
-        val statusTop = WindowInsets.statusBars.getTop(density).toFloat()
+        val statusTop = max(WindowInsets.statusBars.getTop(density), WindowInsets.displayCutout.getTop(density)).toFloat()
         val navBottom = WindowInsets.navigationBars.getBottom(density).toFloat()
-        val e = expand.value
+        val e = expand.value.coerceIn(0f, 1f)
         val px = { dp: Float -> dp * density.density }
 
         // ---- MorphBar geometry ----
@@ -366,10 +368,10 @@ fun PlayerLayer(
         val fullLeft: Float
         val fullTop: Float
         if (wide) {
-            val size = min(H * 0.62f, W * 0.42f)
+            val size = min((H - statusTop - navBottom) * 0.62f, W * 0.42f).coerceAtLeast(px(80f))
             fullW = size; fullH = if (wideVideo) size * 9f / 16f else size
             fullLeft = W * 0.27f - size / 2f
-            fullTop = (H - fullH) / 2f
+            fullTop = statusTop + ((H - statusTop - navBottom - fullH) / 2f).coerceAtLeast(0f)
         } else {
             val maxW = W - px(if (wideVideo) 2 * 20f else 2 * 32f)
             val size = if (wideVideo) maxW else min(maxW, (H - statusTop - navBottom) * 0.44f)
@@ -477,7 +479,7 @@ fun PlayerLayer(
                                 onDragStart = { tracker.resetTracking(); mode = 0 },
                                 onDragEnd = {
                                     val v = tracker.calculateVelocity().y
-                                    if (mode == 2) queueDragEnd(v) else animateTo(if (v > 1200f || expand.value < 0.7f) 0f else 1f)
+                                    if (mode == 2) queueDragEnd(v) else animateTo(if (v > 1200f || expand.value < 0.7f) 0f else 1f, -v / (H - barTop).coerceAtLeast(1f))
                                 },
                                 onDragCancel = { if (mode == 2) queueDragEnd(0f) else animateTo(1f) },
                             ) { change, dy ->
@@ -519,7 +521,7 @@ fun PlayerLayer(
                     artWidthPx = miniArtW,
                     onExpand = { animateTo(1f) },
                     onDragExpand = { delta -> scope.launch { expand.snapTo((expand.value + delta / (H - barTop)).coerceIn(0f, 1f)) } },
-                    onDragEnd = { v -> animateTo(if (v < -900f || expand.value > 0.25f) 1f else 0f) },
+                    onDragEnd = { v -> animateTo(if (v < -900f || expand.value > 0.25f) 1f else 0f, -v / (H - barTop).coerceAtLeast(1f)) },
                     actions = actions,
                 )
             }
@@ -685,7 +687,7 @@ fun PlayerLayer(
                     onPullEnd = { v ->
                         val m = pullMode[0]
                         pullMode[0] = 0
-                        if (m == 2) queueDragEnd(v) else animateTo(if (v > 1000f || expand.value < 0.75f) 0f else 1f)
+                        if (m == 2) queueDragEnd(v) else animateTo(if (v > 1000f || expand.value < 0.75f) 0f else 1f, -v / (H - barTop).coerceAtLeast(1f))
                     },
                     onTap = { immersive = !immersive },
                     onLongPress = { t -> haptics.longPress(); actions.onMore(t) },

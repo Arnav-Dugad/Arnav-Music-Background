@@ -95,7 +95,8 @@ data class TrackPlayCount(val trackId: String, val plays: Int, val lastPlayed: L
 interface PlayEventDao {
     @Query("SELECT COUNT(*) AS plays, MIN(startedAt) AS firstPlayed, MAX(startedAt) AS lastPlayed FROM play_events WHERE trackId = :trackId AND listenedMs >= 30000")
     suspend fun playStats(trackId: String): PlayStatsRow
-    @Insert suspend fun insert(e: PlayEventEntity)
+    @Insert suspend fun insert(e: PlayEventEntity): Long
+    @Query("DELETE FROM play_events WHERE id = :id") suspend fun delete(id: Long)
     @Query("SELECT * FROM play_events WHERE startedAt >= :since ORDER BY startedAt ASC")
     suspend fun since(since: Long): List<PlayEventEntity>
     @Query("SELECT * FROM play_events WHERE startedAt >= :since ORDER BY startedAt ASC")
@@ -134,6 +135,8 @@ interface AiCacheDao {
 
 @Dao
 interface KvSyncDao {
+    @Query("DELETE FROM kv_sync WHERE `key` LIKE :prefix || '%'") suspend fun deletePrefix(prefix: String)
+    @Query("SELECT * FROM kv_sync") suspend fun all(): List<KvSyncEntity>
     @Query("SELECT * FROM kv_sync WHERE `key` = :key") suspend fun get(key: String): KvSyncEntity?
     @Upsert suspend fun put(e: KvSyncEntity)
     @Query("SELECT * FROM kv_sync WHERE dirty = 1") suspend fun dirty(): List<KvSyncEntity>

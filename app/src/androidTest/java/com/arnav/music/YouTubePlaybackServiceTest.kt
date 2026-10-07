@@ -101,6 +101,15 @@ class YouTubePlaybackServiceTest {
             val service = context.getSystemService(ActivityManager::class.java).getRunningServices(100)
                 .firstOrNull { it.service.className == YouTubePlaybackService::class.java.name }
             assertTrue("YouTube playback must have a foreground service", service?.foreground == true)
+            val notification = context.getSystemService(android.app.NotificationManager::class.java)
+                .activeNotifications.firstOrNull { it.id == YouTubePlaybackService.NOTIFICATION }?.notification
+            assertTrue("Playback notification must be posted", notification != null)
+            assertEquals("Offline focus test", notification!!.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString())
+            val token = notification.extras.getParcelable<android.media.session.MediaSession.Token>(android.app.Notification.EXTRA_MEDIA_SESSION)
+            assertTrue("System UI needs a valid media-session token", token != null)
+            val controls = android.media.session.MediaController(context, token!!)
+            assertEquals(android.media.session.PlaybackState.STATE_PLAYING, controls.playbackState?.state)
+            assertEquals("Offline focus test", controls.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE))
             playback.pause()
             assertTrue(!playback.state.value.isPlaying)
             playback.play()

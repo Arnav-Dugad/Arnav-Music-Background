@@ -463,7 +463,10 @@ class PlaybackController(
             val c = controller ?: return
             val newIndex = localRunStart + c.currentMediaItemIndex
             if (newIndex != _state.value.queue.currentIndex) {
-                finishSession(skipped = reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK, completedNaturally = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+                val crossfaded = PlaybackService.crossfadeFromId == _state.value.current?.id?.value
+                PlaybackService.crossfadeFromId = null
+                finishSession(skipped = reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK && !crossfaded,
+                    completedNaturally = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || crossfaded)
                 _state.update { it.copy(queue = it.queue.skipTo(newIndex)) }
                 _state.value.current?.let(::beginSession)
                 persistQueue()
@@ -555,7 +558,7 @@ class PlaybackController(
     // YouTube playback is never touched.
 
     private fun smartAllowed(track: Track?): Boolean =
-        track != null && track.source == SourceType.LOCAL && settings.settings.value.smartTransitions && _state.value.repeat != RepeatMode.ONE
+        track != null && track.source == SourceType.LOCAL && settings.settings.value.smartTransitions && settings.settings.value.crossfadeMs == 0 && _state.value.repeat != RepeatMode.ONE
 
     private fun introTarget(sections: TrackSections): Long =
         if (sections.introMs > SMART_MIN_INTRO_MS) sections.introMs - SMART_INTRO_LEAD_MS else 0L

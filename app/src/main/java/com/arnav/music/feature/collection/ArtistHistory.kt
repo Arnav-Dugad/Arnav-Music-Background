@@ -86,7 +86,7 @@ fun ArtistHistorySection(artistName: String, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(Space.s))
         if (history.isEmpty) {
             Text(
-                "You haven't played $artistName in Arnav yet. Your plays will show up here — they never leave this phone.",
+                "You haven't played $artistName in Arnav yet. Your plays will show up here — they sync privately when account sync is enabled.",
                 style = ArnavTheme.type.bodySmall, color = c.contentSubtle,
             )
             return@Column

@@ -115,3 +115,29 @@ test('malformed manifests and dangling device pointers are rejected', async () =
   await assertFails(setDoc(doc(db, 'users/alice/devices/' + deviceId), {
     deviceLabel: 'Phone', appVersion: '1.0.1005', latestBackup: backupId, updatedAt: serverTimestamp(), schema: 1 }));
 });
+
+const liveRecord = (kind, value, extra = {}) => ({kind, value, revision: 1, deleted: false,
+  deviceId, updatedAt: serverTimestamp(), schema: 1, ...extra});
+test('live records are private and have validated identities and revisions', async () => {
+  const db = env.authenticatedContext('alice').firestore();
+  const setting = doc(db, 'users/alice/liveRecords/s_crossfadeMs');
+  await assertSucceeds(setDoc(setting, liveRecord('setting', '6000')));
+  await assertFails(setDoc(setting, liveRecord('setting', '7000')));
+  await assertSucceeds(setDoc(setting, liveRecord('setting', '7000', {revision: 2})));
+  await assertFails(setDoc(doc(db, 'users/alice/liveRecords/s_cloudSync'), liveRecord('setting', 'true')));
+  await assertFails(setDoc(doc(db, 'users/alice/liveRecords/s_analytics'), liveRecord('setting', 'true')));
+  await assertFails(setDoc(doc(db, 'users/alice/liveRecords/s_crossfadeMs'), liveRecord('history', '{}', {revision: 3})));
+  for (const ctx of [env.unauthenticatedContext(), env.authenticatedContext('mallory')]) {
+    await assertFails(getDoc(doc(ctx.firestore(), 'users/alice/liveRecords/s_crossfadeMs')));
+    await assertFails(setDoc(doc(ctx.firestore(), 'users/alice/liveRecords/q_shared'), liveRecord('queue', '{}')));
+  }
+});
+test('listening event content is immutable and tombstones cannot resurrect', async () => {
+  const db = env.authenticatedContext('alice').firestore();
+  const ref = doc(db, 'users/alice/liveRecords/h_' + hash);
+  await assertSucceeds(setDoc(ref, liveRecord('history', '{"listenedMs":12345}')));
+  await assertFails(setDoc(ref, liveRecord('history', '{"listenedMs":99999}', {revision: 2})));
+  await assertSucceeds(setDoc(ref, liveRecord('history', '{"listenedMs":12345}', {revision: 2, deleted: true})));
+  await assertFails(setDoc(ref, liveRecord('history', '{"listenedMs":12345}', {revision: 3})));
+  await assertFails(setDoc(doc(db, 'users/alice/liveRecords/q_shared'), liveRecord('queue', 'x'.repeat(200001))));
+});

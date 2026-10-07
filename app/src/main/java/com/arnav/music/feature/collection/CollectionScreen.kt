@@ -256,6 +256,7 @@ fun ArtistScreen(name: String, from: String? = null, vm: CollectionViewModel = k
         sharedKey = ArtKeys.artist(name, from), crossfadeArt = true, titleKey = ArtKeys.artistName(name, from), flyRows = true,
         afterHero = {
             Column {
+                com.arnav.music.feature.details.LibraryDetails(ui.tracks)
                 ArtistAlbumsSection(albums)
                 ArtistHistorySection(name)
             }

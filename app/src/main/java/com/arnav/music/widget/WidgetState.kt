@@ -51,6 +51,8 @@ internal data class WidgetSnapshot(
     val youtube: Boolean,
     val hasNext: Boolean,
     val upNext: List<WidgetQueueItem> = emptyList(),
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
 ) {
     companion object {
         private const val PREFS = "widget_snapshot"
@@ -60,7 +62,7 @@ internal data class WidgetSnapshot(
             return WidgetSnapshot(
                 p.getString("t", null), p.getString("a", null), p.getString("art", null),
                 p.getBoolean("p", false), p.getBoolean("yt", false), p.getBoolean("n", false),
-                decode(p.getString("q", null)),
+                decode(p.getString("q", null)), p.getLong("pos", 0L), p.getLong("dur", 0L),
             )
         }
 
@@ -69,6 +71,7 @@ internal data class WidgetSnapshot(
                 .putString("t", s.title).putString("a", s.artist).putString("art", s.artworkUrl)
                 .putBoolean("p", s.playing).putBoolean("yt", s.youtube).putBoolean("n", s.hasNext)
                 .putString("q", encode(s.upNext))
+                .putLong("pos", s.positionMs).putLong("dur", s.durationMs)
                 .apply()
         }
 

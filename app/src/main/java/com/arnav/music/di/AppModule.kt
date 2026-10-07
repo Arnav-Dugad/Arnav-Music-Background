@@ -123,6 +123,7 @@ val appModule = module {
     viewModel { HomeViewModel(get(), get(), get(), get(), get()) }
     viewModel { ExploreViewModel(get(), get(), get(), get()) }
     viewModel { LibraryViewModel(get(), get(), get()) }
+    viewModel { com.arnav.music.feature.health.LibraryHealthViewModel(androidContext(), get(), get(), get()) }
     viewModel { com.arnav.music.feature.duplicates.DuplicatesViewModel(androidContext(), get()) }
     viewModel { com.arnav.music.feature.imports.ImportHistoryViewModel(get(), get()) }
     viewModel { com.arnav.music.feature.library.YouTubeImportViewModel(get()) }

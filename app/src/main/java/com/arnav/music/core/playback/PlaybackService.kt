@@ -80,6 +80,7 @@ class PlaybackService : MediaLibraryService() {
     private val playback: PlaybackController by inject()
     private val autoLibrary by lazy { AutoLibrary(library, local) }
     private var session: MediaLibrarySession? = null
+    private var crossfade: LocalCrossfade? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     /** Media id (= TrackId value) of the current item, for the notification's Like button. */
@@ -105,6 +106,13 @@ class PlaybackService : MediaLibraryService() {
             override fun onTimelineChanged(timeline: Timeline, reason: Int) { currentMediaId.value = player.currentMediaItem?.mediaId?.ifEmpty { null } }
         })
         _audioSessionId.value = player.audioSessionId
+        val tail = ExoPlayer.Builder(this, SingRenderersFactory(this))
+            .setAudioAttributes(player.audioAttributes, false)
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_LOCAL)
+            .build()
+        crossfade = LocalCrossfade(player, tail, settings, playback, scope)
+
 
         scope.launch {
             settings.settings.map { Triple(it.skipSilence, it.playbackSpeed, it.pauseOnDisconnect) }.distinctUntilChanged().collect { (skip, speed, noisy) ->
@@ -411,6 +419,8 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        crossfade?.release()
+        crossfade = null
         scope.cancel()
         session?.run { player.release(); release() }
         session = null
@@ -418,6 +428,8 @@ class PlaybackService : MediaLibraryService() {
     }
 
     companion object {
+        internal var crossfadeFromId: String? = null
+
         private const val ACTION_TOGGLE_LIKE = "com.arnav.music.TOGGLE_LIKE"
         private const val ACTION_PREV_CHAPTER = "com.arnav.music.PREV_CHAPTER"
         private const val ACTION_NEXT_CHAPTER = "com.arnav.music.NEXT_CHAPTER"

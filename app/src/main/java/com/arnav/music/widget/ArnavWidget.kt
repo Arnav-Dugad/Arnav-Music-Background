@@ -15,6 +15,9 @@ import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalSize
+import androidx.glance.appwidget.LinearProgressIndicator
+import androidx.glance.layout.padding
+import com.arnav.music.domain.format.Formatters
 import androidx.glance.action.Action
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
@@ -51,7 +54,7 @@ import kotlinx.coroutines.withContext
 import org.koin.core.context.GlobalContext
 
 class ArnavWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Responsive(setOf(DpSize(180.dp, 64.dp), DpSize(260.dp, 110.dp)))
+    override val sizeMode = SizeMode.Responsive(setOf(DpSize(180.dp, 64.dp), DpSize(260.dp, 156.dp), DpSize(320.dp, 228.dp)))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val initial = WidgetBus.current(context)
@@ -71,26 +74,42 @@ class ArnavWidget : GlanceAppWidget() {
 
     @Composable
     private fun Content(context: Context, s: WidgetSnapshot, art: Bitmap?) {
-        val tall = LocalSize.current.height >= 100.dp
+        val size = LocalSize.current
+        val expanded = size.height >= 150.dp
+        val spacious = size.height >= 220.dp
         val p = widgetPalette()
         val open = openPlayerAction(context)
-        // 12 dp in both styles: this widget's sizes are too short for the 16 dp Material 3 padding.
-        Column(GlanceModifier.widgetRoot(p, 12.dp)) {
-            Row(GlanceModifier.fillMaxWidth().clickable(open), verticalAlignment = Alignment.CenterVertically) {
-                Artwork(art, if (tall) 64 else 44)
-                Spacer(GlanceModifier.width(12.dp))
-                Column(GlanceModifier.defaultWeight()) {
-                    Text(s.title ?: "Arnav Music", style = TextStyle(color = p.title, fontSize = 15.sp, fontWeight = FontWeight.Bold), maxLines = 1)
-                    Text(s.artist ?: "Tap to start listening", style = TextStyle(color = p.body, fontSize = 12.sp), maxLines = 1)
+        Column(GlanceModifier.widgetRoot(p, if (expanded) 16.dp else 8.dp)) {
+            Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(GlanceModifier.defaultWeight().clickable(open), verticalAlignment = Alignment.CenterVertically) {
+                    Artwork(art, if (spacious) 88 else if (expanded) 56 else 40)
+                    Spacer(GlanceModifier.width(if (expanded) 12.dp else 8.dp))
+                    Column(GlanceModifier.defaultWeight()) {
+                        if (expanded) Text(if (s.youtube) "YOUTUBE" else "ON THIS DEVICE",
+                            style = TextStyle(color = p.accent, fontSize = 10.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                        Text(s.title ?: "Arnav Music", style = TextStyle(color = p.title,
+                            fontSize = if (spacious) 18.sp else 14.sp, fontWeight = FontWeight.Bold), maxLines = if (spacious) 2 else 1)
+                        Text(s.artist ?: "Tap to start listening", style = TextStyle(color = p.body, fontSize = 12.sp), maxLines = 1)
+                    }
                 }
+                if (!expanded) WidgetButton(if (s.playing) R.drawable.ic_w_pause else R.drawable.ic_w_play,
+                    if (s.playing) "Pause" else "Play", actionRunCallback<PlayPauseAction>(), primary = true)
             }
-            if (tall) {
+            if (expanded) {
                 Spacer(GlanceModifier.height(10.dp))
+                WidgetProgress(s)
+                Spacer(GlanceModifier.height(8.dp))
                 Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     TransportButtons(context, s)
                     Spacer(GlanceModifier.defaultWeight())
-                    WidgetButton(R.drawable.ic_w_ai, "Ask Arnav AI", actionStartActivity(Intent(Intent.ACTION_VIEW, Uri.parse("arnavmusic://ai"), context, MainActivity::class.java)))
-                    WidgetButton(R.drawable.ic_w_moment, "Moments", actionStartActivity(Intent(Intent.ACTION_VIEW, Uri.parse("arnavmusic://moment/night_drive"), context, MainActivity::class.java)))
+                    WidgetButton(R.drawable.ic_w_ai, "Ask Arnav AI", actionStartActivity(Intent(Intent.ACTION_VIEW,
+                        Uri.parse("arnavmusic://ai"), context, MainActivity::class.java)))
+                }
+                if (spacious) {
+                    s.upNext.firstOrNull()?.let { next ->
+                        Spacer(GlanceModifier.height(8.dp))
+                        Text("Next · " + next.title, style = TextStyle(color = p.body, fontSize = 12.sp), maxLines = 1)
+                    }
                 }
             }
         }
@@ -110,10 +129,12 @@ class ArnavWidget : GlanceAppWidget() {
             youtube: Boolean,
             hasNext: Boolean,
             upNext: List<WidgetQueueItem> = emptyList(),
+            positionMs: Long = 0L,
+            durationMs: Long = 0L,
         ) {
             // Art first so running sessions never flash the placeholder between two covers.
             WidgetBus.ensureArt(context, artworkUrl)
-            WidgetBus.publish(context, WidgetSnapshot(title, artist, artworkUrl, playing, youtube, hasNext, upNext))
+            WidgetBus.publish(context, WidgetSnapshot(title, artist, artworkUrl, playing, youtube, hasNext, upNext, positionMs, durationMs))
             runCatching { ArnavWidget().updateAll(context) }
             runCatching { QueueWidget().updateAll(context) }
         }
@@ -142,20 +163,24 @@ internal fun Artwork(art: Bitmap?, sizeDp: Int) {
     }
 }
 
-/**
- * Prev / play-pause / next. YouTube can't play while the app is hidden, so for a YouTube track
- * anything that would start playback opens the app instead.
- */
+/** Controls use the same controller as the notification, including background YouTube. */
 @Composable
 internal fun TransportButtons(context: Context, s: WidgetSnapshot) {
-    val open = openPlayerAction(context)
-    WidgetButton(R.drawable.ic_w_prev, "Previous", if (s.youtube) open else actionRunCallback<PrevAction>())
-    WidgetButton(
-        if (s.playing) R.drawable.ic_w_pause else R.drawable.ic_w_play, if (s.playing) "Pause" else "Play",
-        if (s.youtube && !s.playing) open else actionRunCallback<PlayPauseAction>(),
-        primary = true,
-    )
-    WidgetButton(R.drawable.ic_w_next, "Next", if (s.youtube) open else actionRunCallback<NextAction>())
+    WidgetButton(R.drawable.ic_w_prev, "Previous", actionRunCallback<PrevAction>())
+    WidgetButton(if (s.playing) R.drawable.ic_w_pause else R.drawable.ic_w_play,
+        if (s.playing) "Pause" else "Play", actionRunCallback<PlayPauseAction>(), primary = true)
+    WidgetButton(R.drawable.ic_w_next, "Next", actionRunCallback<NextAction>())
+}
+
+@Composable
+internal fun WidgetProgress(s: WidgetSnapshot) {
+    val p = widgetPalette()
+    LinearProgressIndicator(progress = if (s.durationMs > 0) (s.positionMs.toFloat() / s.durationMs).coerceIn(0f, 1f) else 0f,
+        modifier = GlanceModifier.fillMaxWidth().height(3.dp), color = p.accent, backgroundColor = p.row)
+    Row(GlanceModifier.fillMaxWidth().padding(top = 3.dp)) {
+        Text(Formatters.duration(s.positionMs), style = TextStyle(color = p.faint, fontSize = 10.sp), modifier = GlanceModifier.defaultWeight())
+        Text(Formatters.duration(s.durationMs), style = TextStyle(color = p.faint, fontSize = 10.sp))
+    }
 }
 
 /** Round icon button; [primary] gets a filled container in the Material You style. */
@@ -163,7 +188,7 @@ internal fun TransportButtons(context: Context, s: WidgetSnapshot) {
 internal fun WidgetButton(icon: Int, label: String, action: Action, primary: Boolean = false) {
     val p = widgetPalette()
     val container = if (primary) p.primaryButton else null
-    val base = GlanceModifier.size(40.dp).cornerRadius(20.dp)
+    val base = GlanceModifier.size(48.dp).cornerRadius(24.dp)
     Box((if (container != null) base.background(container) else base).clickable(action), contentAlignment = Alignment.Center) {
         Image(
             ImageProvider(icon),
@@ -176,51 +201,24 @@ internal fun WidgetButton(icon: Int, label: String, action: Action, primary: Boo
 
 // endregion
 
-// region Actions (run on Main, never start YouTube playback)
+// region Actions
 
 internal suspend fun withPlayer(block: (PlaybackController) -> Unit) = withContext(Dispatchers.Main) {
     runCatching { block(GlobalContext.get().get()) }
 }
-
-private fun isLocalAt(p: PlaybackController, index: Int): Boolean =
-    p.state.value.queue.items.getOrNull(index)?.track?.source == SourceType.LOCAL
-
 class PlayPauseAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        withPlayer { p ->
-            val s = p.state.value
-            // Pausing is always fine; starting is only allowed for local audio.
-            if (s.isPlaying || s.current?.source == SourceType.LOCAL) p.togglePlay()
-        }
+        withPlayer { it.togglePlay() }
     }
 }
-
 class NextAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        withPlayer { p ->
-            val s = p.state.value
-            if (s.current?.source != SourceType.LOCAL) return@withPlayer
-            val q = s.queue
-            val target = when {
-                q.hasNext -> q.currentIndex + 1
-                s.repeat == RepeatMode.ALL -> 0
-                else -> -1 // next() just pauses at the end of the queue
-            }
-            if (target == -1 || isLocalAt(p, target)) p.next()
-        }
+        withPlayer { it.next() }
     }
 }
-
 class PrevAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        withPlayer { p ->
-            val s = p.state.value
-            if (s.current?.source != SourceType.LOCAL) return@withPlayer
-            // previous() restarts the current track after 4 s or at the start of the queue.
-            val restarts = p.progress.value.positionMs > 4_000 || !s.queue.hasPrevious
-            if (restarts || isLocalAt(p, s.queue.currentIndex - 1)) p.previous()
-        }
+        withPlayer { it.previous() }
     }
 }
-
 // endregion

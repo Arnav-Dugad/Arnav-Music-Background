@@ -58,6 +58,9 @@ class CloudSync(
     val vault: CloudVault,
 ) {
     private val mutex = Mutex()
+    private val records = CloudRecords(context, db, settings, usage)
+    private var remoteJob: Job? = null
+    @Volatile private var remotePending = false
     private var debounceJob: Job? = null
     private val prefs = context.getSharedPreferences("sync_state", Context.MODE_PRIVATE)
     private val _status = MutableStateFlow(SyncStatus.IDLE)
@@ -80,16 +83,22 @@ class CloudSync(
     fun startObserving() {
         if (observing || !gate.isAvailable) return
         observing = true
+        scope.launch(kotlinx.coroutines.Dispatchers.Main) {
+            val player = org.koin.core.context.GlobalContext.get().get<com.arnav.music.core.playback.PlaybackController>()
+            player.state.collect { if (!it.isPlaying && !it.isBuffering) requestSync(4_000) }
+        }
         db.invalidationTracker.addObserver(object : androidx.room.InvalidationTracker.Observer(com.arnav.music.core.backup.UserDataArchive.TABLES.toTypedArray()) {
             override fun onInvalidated(tables: Set<String>) { requestSync(30_000) }
         })
-        scope.launch { settings.settings.collect { requestSync(30_000) } }
+        scope.launch { settings.settings.collect { if (!it.cloudSync) records.stopObserving(); requestSync(4_000) } }
         com.arnav.music.core.backup.UserDataArchive.PREFS.filter { it !in listOf("usage_meter", "widget_snapshot") }.forEach { name ->
             val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> requestSync(30_000) }
             listeners += listener
             context.getSharedPreferences(name, Context.MODE_PRIVATE).registerOnSharedPreferenceChangeListener(listener)
         }
         FirebaseAuth.getInstance().addAuthStateListener {
+            records.stopObserving()
+            remoteJob?.cancel()
             _backups.value = emptyList()
             _error.value = null
             requestSync(0)
@@ -124,15 +133,17 @@ class CloudSync(
         )
     }
 
-    suspend fun syncNow(): Result<Unit> = mutex.withLock {
+    suspend fun syncNow(forceBackup: Boolean = false): Result<Unit> = mutex.withLock {
         settings.loaded.first { it }
         val uid = uid()
         if (uid == null || !settings.settings.value.cloudSync) {
+            records.stopObserving()
             _status.value = SyncStatus.DISABLED
             return Result.success(Unit)
         }
         val binding = runCatching { bindAccount(uid) }
         if (binding.isFailure) {
+            records.stopObserving()
             _error.value = binding.exceptionOrNull()?.message
             _status.value = SyncStatus.ACCOUNT_BLOCKED
             return binding
@@ -140,11 +151,21 @@ class CloudSync(
         _error.value = null
         _status.value = SyncStatus.SYNCING
         val result = runCatching {
+            records.observe(uid) {
+                remotePending = true
+                if (remoteJob?.isActive != true) remoteJob = scope.launch {
+                    do { remotePending = false; delay(2_000); syncNow() } while (remotePending)
+                }
+            }
+            records.sync(uid)
             syncLikes(uid)
             syncPlaylists(uid)
             check(uid() == uid) { "Account changed during sync" }
-            vault.save(uid)
-            refreshBackups().getOrThrow()
+            if (forceBackup || clock.now() - prefs.getLong("last_backup_$uid", 0L) >= 60 * 60_000L) {
+                vault.save(uid)
+                prefs.edit().putLong("last_backup_$uid", clock.now()).apply()
+                refreshBackups().getOrThrow()
+            }
             prefs.edit().putLong("last_sync_" + uid, clock.now()).apply()
         }
         _status.value = if (result.isSuccess) SyncStatus.UP_TO_DATE else {
@@ -252,12 +273,14 @@ class CloudSync(
     /** Deletes everything Arnav Music stored in the cloud for this user. */
     suspend fun deleteCloudProfile(): Result<Unit> = mutex.withLock { runCatching {
         val uid = uid() ?: error("Sign in first")
+        records.stopObserving()
+        remoteJob?.cancel()
         settings.update { it.copy(cloudSync = false) }
         settings.settings.first { !it.cloudSync }
         debounceJob?.cancel()
         WorkManager.getInstance(context).cancelUniqueWork("cloud-sync-once")
         val userDoc = firestore().collection("users").document(uid)
-        for (sub in listOf("likes", "playlists", "backups", "vaultChunks", "devices")) {
+        for (sub in listOf("likes", "playlists", "backups", "vaultChunks", "devices", "liveRecords")) {
             while (true) {
                 val docs = userDoc.collection(sub).limit(400).get().await()
                 if (docs.isEmpty) break
@@ -268,6 +291,8 @@ class CloudSync(
             }
         }
         userDoc.delete().await()
+        db.kv().deletePrefix("live/$uid/")
+        prefs.edit().remove("live_cursor_$uid").remove("queue_seen_$uid").remove("last_backup_$uid").commit()
         prefs.edit().remove("likes_pulled_" + uid).remove("pl_pulled_" + uid).remove("last_sync_" + uid).apply()
         _backups.value = emptyList()
         _status.value = SyncStatus.DISABLED
@@ -296,7 +321,7 @@ class CloudSync(
                 runCatching { vault.archive.restore(previous) }
                 throw e
             }
-            prefs.edit().putString("data_owner", accountUid).remove("likes_pulled_" + accountUid).remove("pl_pulled_" + accountUid).commit()
+            prefs.edit().putString("data_owner", accountUid).remove("likes_pulled_" + accountUid).remove("pl_pulled_" + accountUid).remove("live_cursor_" + accountUid).remove("queue_seen_" + accountUid).commit()
             _error.value = null
             _status.value = SyncStatus.IDLE
         }

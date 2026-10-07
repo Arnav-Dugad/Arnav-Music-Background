@@ -28,12 +28,12 @@ val ciRunNumber = 1000 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 
 android {
     namespace = "com.arnav.music"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.arnav.music"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = ciRunNumber
         versionName = "1.0.$ciRunNumber"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaSession
@@ -30,6 +31,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import coil3.imageLoader
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.request.allowHardware
+import coil3.toBitmap
 import org.koin.android.ext.android.inject
 
 /** Media controls and process priority for the experimental IFrame background player. */
@@ -43,6 +50,9 @@ class YouTubePlaybackService : Service() {
     private var foreground = false
     private var metadataDuration = -1L
     private var idleJob: Job? = null
+    private var artworkJob: Job? = null
+    private var artworkKey: String? = null
+    private var artwork: Bitmap? = null
 
     private val noisy = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -68,8 +78,12 @@ class YouTubePlaybackService : Service() {
                 override fun onStop() { playback.clearQueue(); stopSelf() }
             }, Handler(Looper.getMainLooper()))
             setSessionActivity(openApp())
-            isActive = true
         }
+        // Register a complete transport state before posting MediaStyle. System UI on
+        // Android 13+ derives its controls from PlaybackState, not notification actions.
+        updateMetadata()
+        updateSession()
+        session.isActive = true
         promote()
         ContextCompat.registerReceiver(this, noisy, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY), ContextCompat.RECEIVER_NOT_EXPORTED)
         scope.launch {
@@ -78,16 +92,8 @@ class YouTubePlaybackService : Service() {
                     stopSelf()
                     return@collect
                 }
-                val track = state.current!!
-                session.setMetadata(MediaMetadata.Builder()
-                    .putString(MediaMetadata.METADATA_KEY_MEDIA_ID, track.id.value)
-                    .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
-                    .putString(MediaMetadata.METADATA_KEY_ARTIST, track.artist)
-                    .putString(MediaMetadata.METADATA_KEY_ALBUM, track.album)
-                    .putString(MediaMetadata.METADATA_KEY_ART_URI, track.artworkUrl)
-                    .putLong(MediaMetadata.METADATA_KEY_DURATION, playback.progress.value.durationMs)
-                    .build())
-                metadataDuration = playback.progress.value.durationMs
+                updateMetadata()
+                loadArtwork(state.current?.artworkUrl)
                 if (state.isPlaying) {
                     idleJob?.cancel(); idleJob = null
                     promote()
@@ -102,6 +108,7 @@ class YouTubePlaybackService : Service() {
                 }
                 updateWakeLock()
                 updateSession()
+                session.isActive = true
                 notifications.notify(NOTIFICATION, notification())
             }
         }
@@ -155,8 +162,53 @@ class YouTubePlaybackService : Service() {
         session.setPlaybackState(PlaybackState.Builder()
             .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or
                 PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS or PlaybackState.ACTION_SEEK_TO or PlaybackState.ACTION_STOP)
-            .setState(status, progress.positionMs, if (state.isPlaying && !state.isBuffering) 1f else 0f)
+            .setState(status, progress.positionMs.coerceAtLeast(0), if (state.isPlaying && !state.isBuffering) 1f else 0f,
+                android.os.SystemClock.elapsedRealtime())
+            .setActiveQueueItemId(state.queue.current?.uid ?: MediaSession.QueueItem.UNKNOWN_ID)
+            .setExtras(android.os.Bundle().apply {
+                putBoolean("android.media.playback.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_PREVIOUS", true)
+                putBoolean("android.media.playback.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_NEXT", true)
+            })
             .build())
+    }
+
+    private fun updateMetadata() {
+        val track = playback.state.value.current ?: return
+        val duration = playback.progress.value.durationMs.takeIf { it > 0 } ?: track.durationMs ?: 0L
+        session.setMetadata(MediaMetadata.Builder()
+            .putString(MediaMetadata.METADATA_KEY_MEDIA_ID, track.id.value)
+            .putString(MediaMetadata.METADATA_KEY_TITLE, track.title)
+            .putString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE, track.title)
+            .putString(MediaMetadata.METADATA_KEY_ARTIST, track.artist)
+            .putString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE, track.artist)
+            .putString(MediaMetadata.METADATA_KEY_ALBUM, track.album)
+            .putString(MediaMetadata.METADATA_KEY_ART_URI, track.artworkUrl)
+            .putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, artwork.takeIf { artworkKey == track.artworkUrl })
+            .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, artwork.takeIf { artworkKey == track.artworkUrl })
+            .putLong(MediaMetadata.METADATA_KEY_DURATION, duration.coerceAtLeast(0L))
+            .build())
+        metadataDuration = duration
+    }
+
+    private fun loadArtwork(url: String?) {
+        if (url == artworkKey) return
+        artworkKey = url
+        artwork = null
+        artworkJob?.cancel()
+        if (url == null) return
+        artworkJob = scope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                runCatching {
+                    val result = imageLoader.execute(ImageRequest.Builder(this@YouTubePlaybackService)
+                        .data(url).size(384).allowHardware(false).build())
+                    (result as? SuccessResult)?.image?.toBitmap()
+                }.getOrNull()
+            }
+            if (artworkKey != url || playback.state.value.engine != Engine.YOUTUBE) return@launch
+            artwork = bitmap
+            updateMetadata()
+            getSystemService(NotificationManager::class.java).notify(NOTIFICATION, notification())
+        }
     }
 
     private fun promote() {
@@ -177,6 +229,8 @@ class YouTubePlaybackService : Service() {
         val state = playback.state.value
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_arnav)
+            .setLargeIcon(artwork)
+            .setShowWhen(false)
             .setContentTitle(state.current?.title ?: "Arnav Music")
             .setContentText(state.current?.artist ?: "YouTube playback")
             .setContentIntent(openApp())
@@ -211,8 +265,8 @@ class YouTubePlaybackService : Service() {
     }
 
     companion object {
-        private const val CHANNEL = "youtube_background"
-        private const val NOTIFICATION = 2102
+        const val CHANNEL = "youtube_background"
+        const val NOTIFICATION = 2102
         const val ACTION_START = "com.arnav.music.youtube.START"
         private const val ACTION_TOGGLE = "com.arnav.music.youtube.TOGGLE"
         private const val ACTION_NEXT = "com.arnav.music.youtube.NEXT"

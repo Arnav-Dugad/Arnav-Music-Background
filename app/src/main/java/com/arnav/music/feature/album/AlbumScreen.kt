@@ -143,6 +143,7 @@ fun AlbumScreen(albumId: String, from: String? = null, vm: AlbumViewModel = koin
                         EmptyState(Icons.Rounded.Album, "Album not found", "It may have been moved or deleted from this phone.")
                     }
                     else -> {
+                        item(key = "album_details") { com.arnav.music.feature.details.LibraryDetails(ui.tracks, albumId) }
                         val multiDisc = ui.discs.size > 1
                         val all = ui.tracks
                         ui.discs.forEach { disc ->

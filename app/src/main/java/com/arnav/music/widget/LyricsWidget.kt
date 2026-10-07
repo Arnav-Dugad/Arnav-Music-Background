@@ -70,7 +70,7 @@ import org.koin.core.context.GlobalContext
  *   progress tick, and only while a lyrics widget is actually placed.
  */
 class LyricsWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Responsive(setOf(DpSize(250.dp, 110.dp), DpSize(250.dp, 180.dp)))
+    override val sizeMode = SizeMode.Responsive(setOf(DpSize(220.dp, 136.dp), DpSize(300.dp, 220.dp)))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val initial = WidgetBus.lyric.value ?: fallback(context)
@@ -92,7 +92,7 @@ class LyricsWidget : GlanceAppWidget() {
 
     @Composable
     private fun Content(context: Context, l: WidgetLyric) {
-        val tall = LocalSize.current.height >= 170.dp
+        val tall = LocalSize.current.height >= 210.dp
         val p = widgetPalette()
         val white = p.title
         // The glass style dims the next line a little more than other secondary text.

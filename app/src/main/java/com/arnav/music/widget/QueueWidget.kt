@@ -41,7 +41,7 @@ import kotlinx.coroutines.withContext
 
 /** Large "Up next" widget: now-playing header plus the next few queue items. */
 class QueueWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Responsive(setOf(DpSize(250.dp, 180.dp), DpSize(250.dp, 220.dp), DpSize(250.dp, 260.dp), DpSize(250.dp, 300.dp)))
+    override val sizeMode = SizeMode.Responsive(setOf(DpSize(220.dp, 220.dp), DpSize(300.dp, 280.dp), DpSize(340.dp, 340.dp)))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val initial = WidgetBus.current(context)
@@ -80,18 +80,21 @@ class QueueWidget : GlanceAppWidget() {
                     Row(GlanceModifier.defaultWeight().clickable(open), verticalAlignment = Alignment.CenterVertically) {
                         Artwork(art, 48)
                         Spacer(GlanceModifier.width(10.dp))
-                        Column {
+                        Column(GlanceModifier.defaultWeight()) {
                             Text(title, style = TextStyle(color = p.title, fontSize = 15.sp, fontWeight = FontWeight.Bold), maxLines = 1)
                             Text(s.artist.orEmpty(), style = TextStyle(color = p.body, fontSize = 12.sp), maxLines = 1)
                         }
                     }
-                    TransportButtons(context, s)
                 }
+                Spacer(GlanceModifier.height(8.dp))
+                Row(GlanceModifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { TransportButtons(context, s) }
+                Spacer(GlanceModifier.height(8.dp))
+                WidgetProgress(s)
                 Spacer(GlanceModifier.height(8.dp))
                 Text("UP NEXT", style = TextStyle(color = p.faint, fontSize = 11.sp, fontWeight = FontWeight.Medium), maxLines = 1)
                 Spacer(GlanceModifier.height(4.dp))
                 // Fixed part ≈ 2 × padding + 48 header + 8 + 15 label + 4; each row is 34 + 2 dp.
-                val rows = ((size.height.value - 2 * pad.value - 75f) / 36f).toInt().coerceIn(1, WidgetQueueItem.MAX)
+                val rows = ((size.height.value - 2 * pad.value - 161f) / 48f).toInt().coerceIn(0, WidgetQueueItem.MAX)
                 val items = s.upNext.take(rows)
                 if (items.isEmpty()) {
                     Box(GlanceModifier.fillMaxWidth().padding(vertical = 8.dp).clickable(open)) {
@@ -106,11 +109,10 @@ class QueueWidget : GlanceAppWidget() {
 
     @Composable
     private fun QueueRow(context: Context, item: WidgetQueueItem, p: WidgetPalette) {
-        // Local tracks jump straight there; a YouTube item only opens the app (it can't play hidden).
-        val action = if (item.youtube) openPlayerAction(context)
-        else actionRunCallback<SkipToQueueItemAction>(actionParametersOf(SkipToQueueItemAction.UidKey to item.uid, SkipToQueueItemAction.IndexKey to item.index))
+        // Local tracks jump straight there; YouTube items also use the background controller.
+        val action = actionRunCallback<SkipToQueueItemAction>(actionParametersOf(SkipToQueueItemAction.UidKey to item.uid, SkipToQueueItemAction.IndexKey to item.index))
         Row(
-            GlanceModifier.fillMaxWidth().height(34.dp).padding(horizontal = 8.dp).cornerRadius(12.dp).background(p.row).clickable(action),
+            GlanceModifier.fillMaxWidth().height(46.dp).padding(horizontal = 8.dp).cornerRadius(12.dp).background(p.row).clickable(action),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -138,7 +140,7 @@ class QueueWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = QueueWidget()
 }
 
-/** Tap on an "Up next" row: jumps to that queue entry — only ever for on-device audio. */
+/** Tap on an "Up next" row: jumps to that queue entry — using stable queue-entry identity. */
 class SkipToQueueItemAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val uid = parameters[UidKey] ?: return
@@ -148,7 +150,6 @@ class SkipToQueueItemAction : ActionCallback {
             // Resolve by uid in case the queue changed since the widget was drawn.
             val index = if (items.getOrNull(hint)?.uid == uid) hint else items.indexOfFirst { it.uid == uid }
             if (index < 0) return@withPlayer
-            if (items[index].track.source != SourceType.LOCAL) return@withPlayer
             p.skipTo(index)
         }
     }

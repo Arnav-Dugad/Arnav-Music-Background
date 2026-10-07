@@ -97,7 +97,7 @@ fun SettingsScreen(page: String, vm: SettingsViewModel = koinViewModel()) {
         "appearance" -> "Appearance"; "playback" -> "Playback"; "ai" -> "Arnav AI"; "sources" -> "Sources"
         "privacy" -> "Privacy"; "usage" -> "Usage & quotas"; "about" -> "About"; "accessibility" -> "Accessibility"
         "performance" -> "Performance"; "sync" -> "Data & sync"; "account" -> "Account"; "notifications" -> "Notifications"
-        "studio" -> "Listening studio"; "developer" -> "Developer"; "library" -> "Library"; "updates" -> "App updates"; else -> "Settings"
+        "health" -> "Library health"; "studio" -> "Listening studio"; "developer" -> "Developer"; "library" -> "Library"; "updates" -> "App updates"; else -> "Settings"
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = chrome.calculateBottomPadding() + Space.xl)) {
         item {
@@ -119,6 +119,7 @@ fun SettingsScreen(page: String, vm: SettingsViewModel = koinViewModel()) {
                 "accessibility" -> AccessibilityPage(vm)
                 "performance" -> PerformancePage(vm)
                 "sync" -> CloudDataPage(vm)
+                "health" -> com.arnav.music.feature.health.LibraryHealthPage()
                 "studio" -> StudioPage(vm)
                 "account" -> AccountPage(vm)
                 "notifications" -> NotificationsPage(vm)
@@ -150,6 +151,8 @@ private fun RootPage() {
             NavRow(Icons.Rounded.AutoAwesome, "Arnav AI", "Gemini, personalization, explanations", Color(0xFFFFB86B)) { go("ai") }
             Divider()
             NavRow(Icons.Rounded.SmartDisplay, "Sources", "YouTube key, region, quota budget", Color(0xFFFF6B6B)) { go("sources") }
+            Divider()
+            NavRow(Icons.Rounded.LibraryMusic, "Library health", "Missing files, artwork, metadata, imports", Color(0xFF4ADE9B)) { go("health") }
             Divider()
             NavRow(Icons.Rounded.LibraryMusic, "Library", "On-device files, saved results", Color(0xFF6BA8FF)) { go("library") }
         }
@@ -245,6 +248,10 @@ private fun PlaybackPage(vm: SettingsViewModel) {
             Divider()
             SliderRow("Fade in / out", s.fadeMs.toFloat(), 0f..1500f, 5, if (s.fadeMs == 0) "Off" else "${s.fadeMs} ms") { v -> vm.update { it.copy(fadeMs = v.toInt()) } }
             Divider()
+            SliderRow("Local crossfade", s.crossfadeMs.toFloat(), 0f..12000f, 11,
+                if (s.crossfadeMs == 0) "Off" else "${s.crossfadeMs / 1000} seconds") { v -> vm.update { it.copy(crossfadeMs = v.toInt()) } }
+            DataFact("Overlapping audio", "Uses two local decoders with equal-power fades. Turn it off for gapless albums. Smart outro trimming is suspended while crossfade is enabled.")
+            Divider()
             ToggleRow("Skip silence", s.skipSilence, { v -> vm.update { it.copy(skipSilence = v) } }, "Trims long silent gaps")
             Divider()
             SliderRow("Playback speed", s.playbackSpeed, 0.5f..2f, 5, "%.2f×".format(s.playbackSpeed)) { v -> vm.update { it.copy(playbackSpeed = v) } }
@@ -262,7 +269,7 @@ private fun PlaybackPage(vm: SettingsViewModel) {
                 }
             }
         }
-        SettingsGroup("Floating player", footer = "Leaving the app mid-song shrinks the player into a small window above other apps. YouTube keeps playing only while that window is visible; closing it stops playback.") {
+        SettingsGroup("Floating player", footer = "Show a small player above other apps. YouTube playback is owned by its background service and continues when the player window closes.") {
             ToggleRow("Picture-in-picture", s.floatingPlayer, { v -> vm.update { it.copy(floatingPlayer = v) } }, "Play, pause and skip right from the window")
             Divider()
             ToggleRow("Lyrics in the mini player", s.miniPlayerLyrics, { v -> vm.update { it.copy(miniPlayerLyrics = v) } }, "Shows the line being sung under the title when synced lyrics are available")
@@ -438,8 +445,27 @@ private fun PerformancePage(vm: SettingsViewModel) {
 @Composable
 private fun NotificationsPage(vm: SettingsViewModel) {
     val s by vm.settings.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val permission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
     Column {
-        SettingsGroup(footer = "Playback controls appear automatically while on-device music plays. No promotional notifications, ever.") {
+        SettingsGroup(footer = "Playback controls support local and YouTube songs. Android and Samsung One UI control how the media panel is displayed.") {
+            ActionRowS("Playback notification settings", "Enable Arnav Music notifications and check the YouTube playback channel") {
+                context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+            }
+            Divider()
+            ActionRowS("YouTube playback channel", "Check whether this channel is blocked or hidden on the lock screen") {
+                context.startActivity(Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, com.arnav.music.core.playback.YouTubePlaybackService.CHANNEL))
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                Divider()
+                ActionRowS("Allow notifications", "Request permission for recaps and other app notifications") {
+                    permission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+            Divider()
             ToggleRow("Weekly listening recap", s.weeklyRecapNotification, { v -> vm.update { it.copy(weeklyRecapNotification = v) } }, "Sunday evening, computed on device")
         }
     }

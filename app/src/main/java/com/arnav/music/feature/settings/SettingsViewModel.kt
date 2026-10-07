@@ -187,7 +187,7 @@ class SettingsViewModel(
     fun syncNow() = viewModelScope.launch {
         if (_busy.value != null) return@launch
         _busy.value = "Syncing your account…"
-        val result = sync.syncNow()
+        val result = sync.syncNow(forceBackup = true)
         _notice.value = when {
             result.isFailure -> result.exceptionOrNull()?.message ?: "Sync failed"
             sync.status.value == com.arnav.music.core.firebase.SyncStatus.DISABLED -> "Sign in and enable cloud sync first"

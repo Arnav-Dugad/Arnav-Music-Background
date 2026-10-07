@@ -39,14 +39,16 @@ class ArnavApp : Application(), SingletonImageLoader.Factory {
         // Cloud work is deferred off the launch path; the UI never waits on Firebase.
         val scope: CoroutineScope = get()
         // Keep the home-screen widgets in sync with playback (debounced; main thread for the player).
-        // Widgets only ever render this snapshot; they never start YouTube playback.
+        // Widgets render a lightweight snapshot and route user transport actions to the playback controller.
         scope.launch {
             val player: com.arnav.music.core.playback.PlaybackController = get()
-            player.state
+            kotlinx.coroutines.flow.combine(player.state,
+                player.progress.map { it.positionMs / 10_000L }.distinctUntilChanged()) { state, _ -> state }
                 .map { s ->
                     listOf(
                         s.current?.id?.value, s.current?.title, s.isPlaying, s.queue.hasNext,
-                        com.arnav.music.widget.WidgetQueueItem.key(s.queue),
+                        com.arnav.music.widget.WidgetQueueItem.key(s.queue), player.progress.value.positionMs / 10_000L,
+                        s.current?.artist, s.current?.artworkUrl,
                     ) to s
                 }
                 .distinctUntilChanged { a, b -> a.first == b.first }
@@ -57,11 +59,12 @@ class ArnavApp : Application(), SingletonImageLoader.Factory {
                     launch(Dispatchers.IO) {
                         com.arnav.music.widget.ArnavWidget.refresh(
                             this@ArnavApp, t?.title, t?.artist, t?.artworkUrl, s.isPlaying,
-                            t?.source == com.arnav.music.domain.model.SourceType.YOUTUBE, s.queue.hasNext, upNext,
+                            t?.source == com.arnav.music.domain.model.SourceType.YOUTUBE, s.queue.hasNext, upNext, player.progress.value.positionMs, player.progress.value.durationMs,
                         )
                     }
                 }
         }
+        scope.launch(Dispatchers.IO) { com.arnav.music.widget.Widgets.publishPreviews(this@ArnavApp) }
         // Lyrics widget: publishes the current/next synced line, only while one is placed.
         LyricsWidget.Feed.start(this, scope)
         // Refresh the "Your week" widget whenever the app goes to the background (no-op when not placed).

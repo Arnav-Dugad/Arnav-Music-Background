@@ -58,6 +58,7 @@ data class AppSettings(
     // Playback (local media)
     val gapless: Boolean = true,
     val fadeMs: Int = 400,
+    val crossfadeMs: Int = 0,
     val skipSilence: Boolean = false,
     val playbackSpeed: Float = 1f,
     val pauseOnDisconnect: Boolean = true,
@@ -144,6 +145,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val libraryLayout = stringPreferencesKey("library_layout")
         val gapless = booleanPreferencesKey("gapless")
         val fadeMs = intPreferencesKey("fade_ms")
+        val crossfadeMs = intPreferencesKey("crossfade_ms")
         val skipSilence = booleanPreferencesKey("skip_silence")
         val speed = floatPreferencesKey("speed")
         val pauseOnDisconnect = booleanPreferencesKey("pause_disconnect")
@@ -212,6 +214,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
                 libraryLayout = p.enum(K.libraryLayout, d.libraryLayout),
                 gapless = p[K.gapless] ?: d.gapless,
                 fadeMs = p[K.fadeMs] ?: d.fadeMs,
+                crossfadeMs = (p[K.crossfadeMs] ?: d.crossfadeMs).coerceIn(0, 12_000),
                 skipSilence = p[K.skipSilence] ?: d.skipSilence,
                 playbackSpeed = p[K.speed] ?: d.playbackSpeed,
                 pauseOnDisconnect = p[K.pauseOnDisconnect] ?: d.pauseOnDisconnect,
@@ -276,6 +279,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             p[K.libraryLayout] = s.libraryLayout.name
             p[K.gapless] = s.gapless
             p[K.fadeMs] = s.fadeMs
+            p[K.crossfadeMs] = s.crossfadeMs.coerceIn(0, 12_000)
             p[K.skipSilence] = s.skipSilence
             p[K.speed] = s.playbackSpeed
             p[K.pauseOnDisconnect] = s.pauseOnDisconnect
