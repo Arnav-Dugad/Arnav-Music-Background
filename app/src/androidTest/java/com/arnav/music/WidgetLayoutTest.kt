@@ -4,7 +4,7 @@ import android.graphics.Rect
 import android.content.res.Configuration
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
+import android.appwidget.AppWidgetHostView
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.compose.ui.unit.DpSize
@@ -69,12 +69,17 @@ class WidgetLayoutTest {
             val density = context.resources.displayMetrics.density
             val width = (size.width.value * density).roundToInt()
             val height = (size.height.value * density).roundToInt()
-            val host = FrameLayout(context)
-            val view = remote.apply(context, host)
-            host.addView(view, FrameLayout.LayoutParams(width, height))
-            host.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
-            host.layout(0, 0, width, height)
+            // A real host selects the appropriate responsive RemoteViews during layout.
+            // RemoteViews.apply alone always selects the smallest variant.
+            val host = AppWidgetHostView(context)
+            host.setPadding(0, 0, 0, 0)
+            host.updateAppWidget(remote)
+            repeat(3) {
+                host.forceLayout()
+                host.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+                host.layout(0, 0, width, height)
+            }
             var textCount = 0
             val texts = mutableListOf<String>()
             fun visit(child: View) {
@@ -92,7 +97,7 @@ class WidgetLayoutTest {
                 }
                 if (child is ViewGroup) for (index in 0 until child.childCount) visit(child.getChildAt(index))
             }
-            visit(view)
+            visit(host)
             assertTrue("Widget must contain song text", textCount > 0)
             val expected = if (widget is LyricsWidget) "A long lyric line which wraps onto the next line"
                 else "A very long song title that must stay inside the widget"
