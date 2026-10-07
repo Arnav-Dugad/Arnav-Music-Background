@@ -93,12 +93,12 @@ class QueueWidget : GlanceAppWidget() {
                 Spacer(GlanceModifier.height(8.dp))
                 Text("UP NEXT", style = TextStyle(color = p.faint, fontSize = 11.sp, fontWeight = FontWeight.Medium), maxLines = 1)
                 Spacer(GlanceModifier.height(4.dp))
-                // Fixed part ≈ 2 × padding + 48 header + 8 + 15 label + 4; each row is 34 + 2 dp.
+                // Reserve the header, transport, progress and label before allocating rows.
                 val rows = ((size.height.value - 2 * pad.value - 161f) / 48f).toInt().coerceIn(0, WidgetQueueItem.MAX)
                 val items = s.upNext.take(rows)
                 if (items.isEmpty()) {
-                    Box(GlanceModifier.fillMaxWidth().padding(vertical = 8.dp).clickable(open)) {
-                        Text(EMPTY, style = TextStyle(color = p.body, fontSize = 13.sp), maxLines = 2)
+                    Box(GlanceModifier.fillMaxWidth().clickable(open)) {
+                        Text(if (s.upNext.isEmpty()) EMPTY else "${s.upNext.size} queued · resize to see songs", style = TextStyle(color = p.body, fontSize = 12.sp), maxLines = 1)
                     }
                 } else {
                     items.forEach { item -> QueueRow(context, item, p) }
@@ -115,17 +115,11 @@ class QueueWidget : GlanceAppWidget() {
             GlanceModifier.fillMaxWidth().height(46.dp).padding(horizontal = 8.dp).cornerRadius(12.dp).background(p.row).clickable(action),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                item.title,
-                style = TextStyle(color = p.rowTitle, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-                maxLines = 1,
-                modifier = GlanceModifier.defaultWeight(),
-            )
-            if (item.artist.isNotBlank()) {
-                Spacer(GlanceModifier.width(6.dp))
-                // Keep the artist short so the title (which has the weight) always stays readable.
-                val artist = if (item.artist.length > 22) item.artist.take(21).trimEnd() + "…" else item.artist
-                Text("· $artist", style = TextStyle(color = p.rowBody, fontSize = 12.sp), maxLines = 1)
+            Column(GlanceModifier.defaultWeight()) {
+                Text(item.title, style = TextStyle(color = p.rowTitle, fontSize = 13.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+                if (item.artist.isNotBlank()) {
+                    Text(item.artist, style = TextStyle(color = p.rowBody, fontSize = 11.sp), maxLines = 1)
+                }
             }
         }
         Spacer(GlanceModifier.height(2.dp))

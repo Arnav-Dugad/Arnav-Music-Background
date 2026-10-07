@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.*
 import java.security.MessageDigest
@@ -181,7 +182,9 @@ class CloudRecords(
                                 val ownDevice = doc.getString("deviceId") == deviceId
                                 val id = if (original.source == com.arnav.music.domain.model.SourceType.LOCAL && !ownDevice)
                                     "local:cloud_" + doc.id.removePrefix("h_") else event.trackId
-                                if (event.title.isNotBlank()) {
+                                // Listening totals travel between devices; a local file reference cannot.
+                                // Keep its metadata in the journal without exposing a playable phantom song.
+                                if (original.source == com.arnav.music.domain.model.SourceType.YOUTUBE && event.title.isNotBlank() && db.tracks().get(id) == null) {
                                     db.tracks().upsert(listOf(TrackEntity(id, event.title, event.artist, event.artistKey,
                                         event.album, event.durationMs, null, if (original.source == com.arnav.music.domain.model.SourceType.YOUTUBE) original.nativeId else "", null, "", null, null, event.startedAt)))
                                 }
