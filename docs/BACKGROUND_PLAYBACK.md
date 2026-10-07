@@ -6,9 +6,9 @@ Source: Arnav-Dugad/Arnav-Music, commit 0229f5d9334968fe62ef57ee26138068770a04d9
 
 - YouTubeEngine owns one application-context YouTubePlayerView with enableBackgroundPlayback(true).
 - Activity/Compose disposal no longer releases the view or pauses the song.
-- YouTubePlaybackService promotes itself to a mediaPlayback foreground service before obtaining audio focus and authorizing playback.
+- YouTubePlaybackService promotes itself to a mediaPlayback foreground service before authorizing playback. Chromium/WebView owns audio focus; the service must not request a competing focus token.
 - A platform MediaSession supplies play/pause, previous/next, seeking and stop controls to the notification, lock screen and headsets.
-- Audio-focus loss pauses; transient loss may resume on gain. Unplugging headphones pauses when that setting is enabled.
+- WebView handles audio-focus interruptions. Unplugging headphones pauses when that setting is enabled.
 - Song mode shows artwork over the retained player. Video mode displays the video and supports the existing optional floating player.
 - Local audio continues through the existing Media3 PlaybackService. Switching to local audio ends the YouTube service.
 - Paused playback releases its wake lock immediately and leaves foreground mode after five minutes. Explicit stop clears the queue, service and notification. Process death does not automatically restart music.

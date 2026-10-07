@@ -10,8 +10,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaSession
@@ -41,12 +39,7 @@ class YouTubePlaybackService : Service() {
     private val settings: SettingsRepository by inject()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var session: MediaSession
-    private lateinit var audio: AudioManager
-    private lateinit var focusRequest: AudioFocusRequest
     private lateinit var wakeLock: PowerManager.WakeLock
-    private var hasFocus = false
-    private var resumeAfterFocus = false
-    private var focusPauseSerial = -1L
     private var foreground = false
     private var metadataDuration = -1L
     private var idleJob: Job? = null
@@ -54,7 +47,6 @@ class YouTubePlaybackService : Service() {
     private val noisy = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY && settings.settings.value.pauseOnDisconnect) {
-                resumeAfterFocus = false
                 playback.pause()
             }
         }
@@ -64,47 +56,12 @@ class YouTubePlaybackService : Service() {
         super.onCreate()
         val notifications = getSystemService(NotificationManager::class.java)
         notifications.createNotificationChannel(NotificationChannel(CHANNEL, "YouTube playback", NotificationManager.IMPORTANCE_LOW))
-        audio = getSystemService(AudioManager::class.java)
         wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:youtube")
             .apply { setReferenceCounted(false) }
-        focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-            .setWillPauseWhenDucked(true)
-            .setOnAudioFocusChangeListener(focus@{ change ->
-                if (playback.state.value.engine != Engine.YOUTUBE) return@focus
-                when (change) {
-                    AudioManager.AUDIOFOCUS_GAIN -> {
-                        hasFocus = true
-                        if (resumeAfterFocus && engine.pauseSerial == focusPauseSerial && playback.state.value.engine == Engine.YOUTUBE) {
-                            resumeAfterFocus = false
-                            promote()
-                            engine.authorizePlayback(true)
-                            playback.play()
-                        }
-                        resumeAfterFocus = false
-                    }
-                    AudioManager.AUDIOFOCUS_LOSS -> {
-                        resumeAfterFocus = false
-                        hasFocus = false
-                        engine.authorizePlayback(false)
-                        playback.pause()
-                        audio.abandonAudioFocusRequest(focusRequest)
-                    }
-                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                        resumeAfterFocus = resumeAfterFocus || playback.state.value.isPlaying
-                        hasFocus = false
-                        engine.authorizePlayback(false)
-                        playback.pause()
-                        focusPauseSerial = engine.pauseSerial
-                    }
-                }
-            }, Handler(Looper.getMainLooper()))
-            .build()
         session = MediaSession(this, "ArnavMusicYouTube").apply {
             setCallback(object : MediaSession.Callback() {
-                override fun onPlay() { resumeAfterFocus = false; promote(); playback.play() }
-                override fun onPause() { resumeAfterFocus = false; playback.pause() }
+                override fun onPlay() { promote(); playback.play() }
+                override fun onPause() { playback.pause() }
                 override fun onSkipToNext() { playback.next() }
                 override fun onSkipToPrevious() { playback.previous() }
                 override fun onSeekTo(pos: Long) { playback.seekTo(pos) }
@@ -134,14 +91,11 @@ class YouTubePlaybackService : Service() {
                 if (state.isPlaying) {
                     idleJob?.cancel(); idleJob = null
                     promote()
-                    obtainFocus()
-                } else if (idleJob == null && !resumeAfterFocus) {
+                } else if (idleJob == null) {
                     // Retain a resumable media notification, but do not keep a paused FGS forever.
                     idleJob = scope.launch {
                         delay(5 * 60_000L)
                         engine.authorizePlayback(false)
-                        audio.abandonAudioFocusRequest(focusRequest)
-                        hasFocus = false
                         stopForeground(STOP_FOREGROUND_DETACH)
                         foreground = false
                     }
@@ -169,24 +123,22 @@ class YouTubePlaybackService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         promote()
         when (intent?.action) {
-            ACTION_TOGGLE -> { resumeAfterFocus = false; playback.togglePlay() }
+            ACTION_TOGGLE -> { playback.togglePlay() }
             ACTION_NEXT -> playback.next()
             ACTION_PREVIOUS -> playback.previous()
             ACTION_STOP -> { playback.clearQueue(); stopSelf() }
-            ACTION_START -> if (playback.state.value.engine == Engine.YOUTUBE) obtainFocus()
+            ACTION_START -> if (playback.state.value.engine == Engine.YOUTUBE) engine.authorizePlayback(true)
         }
         return START_NOT_STICKY // Never restart music unexpectedly after Android kills the process.
     }
 
-    private fun obtainFocus() {
-        if (!hasFocus) hasFocus = audio.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        engine.authorizePlayback(hasFocus)
-        if (!hasFocus) playback.pause()
-    }
+    // Chromium's WebView is the audio-focus owner. A second AudioFocusRequest here
+    // receives LOSS when the IFrame starts audio and would pause our own song.
+    // Only authorize playback after foreground promotion; WebView handles interruptions.
 
     private fun updateWakeLock() {
         val state = playback.state.value
-        if (state.engine == Engine.YOUTUBE && state.isPlaying && hasFocus) {
+        if (state.engine == Engine.YOUTUBE && state.isPlaying) {
             // Bounded acquisition; the progress flow renews only if playback is still active.
             if (!wakeLock.isHeld) wakeLock.acquire(10 * 60_000L)
         } else if (wakeLock.isHeld) wakeLock.release()
@@ -250,7 +202,6 @@ class YouTubePlaybackService : Service() {
         if (playback.state.value.engine == Engine.YOUTUBE) playback.pause()
         engine.authorizePlayback(false)
         if (playback.state.value.engine != Engine.YOUTUBE) engine.detach()
-        audio.abandonAudioFocusRequest(focusRequest)
         if (wakeLock.isHeld) wakeLock.release()
         session.isActive = false
         session.release()
