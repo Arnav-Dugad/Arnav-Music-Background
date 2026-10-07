@@ -1493,10 +1493,23 @@ private fun LyricsEditorDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { onSave(text) }, enabled = text.isNotBlank()) { Text("Save", color = c.accent) }
+            // Resolve these inside the dialog window, while its text input still owns focus.
+            val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+            val focus = androidx.compose.ui.platform.LocalFocusManager.current
+            TextButton(onClick = {
+                keyboard?.hide()
+                focus.clearFocus(force = true)
+                onSave(text)
+            }, enabled = text.isNotBlank()) { Text("Save", color = c.accent) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = c.contentMuted) }
+            val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+            val focus = androidx.compose.ui.platform.LocalFocusManager.current
+            TextButton(onClick = {
+                keyboard?.hide()
+                focus.clearFocus(force = true)
+                onDismiss()
+            }) { Text("Cancel", color = c.contentMuted) }
         },
         title = { Text(title, style = ArnavTheme.type.title) },
         text = {

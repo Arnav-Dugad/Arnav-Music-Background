@@ -112,6 +112,10 @@ class LocalPlaybackTest {
         )
         rule.onAllNodes(field).onFirst().performTextReplacement(LRC)
         rule.click(M.clickableText("Save"))
+        rule.waitUntilTrue("lyrics editor keyboard hidden after Save") {
+            androidx.core.view.ViewCompat.getRootWindowInsets(rule.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == false
+        }
         rule.waitFor(lyricLine("Arnav first line"))
         rule.waitFor(lyricLine("Arnav second line"))
         rule.waitFor(lyricLine("Arnav third line"))
