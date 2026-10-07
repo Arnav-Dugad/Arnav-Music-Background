@@ -1,6 +1,7 @@
 package com.arnav.music
 
 import android.graphics.Rect
+import android.content.res.Configuration
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -15,6 +16,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.arnav.music.core.settings.SettingsRepository
 import com.arnav.music.widget.*
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -30,6 +32,7 @@ class WidgetLayoutTest {
         val context = instrumentation.targetContext
         val settings = GlobalContext.get().get<SettingsRepository>()
         settings.loaded.first { it }
+        delay(600) // Let the application's initial empty playback snapshot settle.
         WidgetBus.publish(context, WidgetSnapshot(
             "A very long song title that must stay inside the widget", "An artist with a very long name",
             null, true, true, true,
@@ -51,13 +54,16 @@ class WidgetLayoutTest {
         for (materialYou in listOf(false, true)) {
             settings.update { it.copy(widgetMaterialYou = materialYou) }
             settings.settings.first { it.widgetMaterialYou == materialYou }
-            for ((widget, size) in sizes) verify(widget, size)
+            for (fontScale in listOf(1f, 1.3f)) {
+                for ((widget, size) in sizes) verify(widget, size, fontScale)
+            }
         }
     }
 
-    private suspend fun verify(widget: GlanceAppWidget, size: DpSize) {
+    private suspend fun verify(widget: GlanceAppWidget, size: DpSize, fontScale: Float) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val context = instrumentation.targetContext
+        val base = instrumentation.targetContext
+        val context = base.createConfigurationContext(Configuration(base.resources.configuration).apply { this.fontScale = fontScale })
         val remote = widget.compose(context, size = size)
         instrumentation.runOnMainSync {
             val density = context.resources.displayMetrics.density

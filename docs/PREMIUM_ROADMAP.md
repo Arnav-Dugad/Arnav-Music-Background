@@ -12,7 +12,7 @@ This implementation starts multiple packages with connected UI, persistence and 
 | Local audio | True two-decoder equal-power local crossfade (0–12 s); existing gapless, fades, analysis and Sing retained | Measured loudness normalization, output presets and device calibration |
 | Animation | Player release velocity drives interruptible spring settling; safe geometry/cutout alignment; existing reduced-motion support | Full animation audit and gesture/scroll performance profiling |
 | Search and smart playlists | Quoted artist/source/year/duration filters, typo matching, preview/save/refresh rule playlists | Automatic rule reevaluation, more rules, indexed large-library search and duplicate-resolution UX |
-| Data and devices | Full immutable snapshots, schema/checksum validation, account isolation, restore/export controls, complete cloud deletion, strict rules/tests | Per-record history/settings conflict merge, device handoff, retention/garbage collection, optional local-audio Storage backup |
+| Data and devices | Per-record settings/history sync, idle YouTube queue sync, immutable snapshots, account isolation, restore/export controls, complete cloud deletion, strict rules/tests | Device handoff, retention/garbage collection, optional local-audio Storage backup |
 
 ## Release acceptance
 
@@ -25,9 +25,9 @@ This implementation starts multiple packages with connected UI, persistence and 
 
 ## Next implementation order
 
-1. Retention/garbage collection, local backup import and account-scoped structured event sync.
+1. Retention/garbage collection and local backup import.
 2. Playback diagnostics and actual-device background-playback verification.
-3. Measured normalization, output presets and genuine overlapping local crossfade.
+3. Measured normalization and output presets.
 4. Player customization, motion/gesture audit and accessibility checks.
 5. Rich metadata/version graph and automatic smart-rule evaluation.
 6. AI song replacements and queue undo, followed by device handoff.
