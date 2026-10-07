@@ -111,6 +111,9 @@ class LocalPlaybackTest {
             M.TEXT_FIELD and hasText("[00:12.00] First line…", substring = true),
         )
         rule.onAllNodes(field).onFirst().performTextReplacement(LRC)
+        // Text replacement is instantaneous in tests. Complete the real IME hide
+        // while this dialog owns focus, before asserting the player's Back action.
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
         rule.click(M.clickableText("Save"))
         rule.waitUntilTrue("lyrics editor keyboard hidden after Save") {
             androidx.core.view.ViewCompat.getRootWindowInsets(rule.activity.window.decorView)
