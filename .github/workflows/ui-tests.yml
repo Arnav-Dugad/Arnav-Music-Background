@@ -34,8 +34,7 @@ jobs:
       YOUTUBE_API_KEY: ""
       GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
       API_LEVEL: ${{ matrix.api }}
-      # API 37's goldfish mapper asserts when the host advertises DMA readback.
-      EMULATOR_GRAPHICS: ${{ matrix.api == '37.0' && '-gpu software -feature -HasSharedSlotsHostMemoryAllocator' || '-gpu swiftshader_indirect' }}
+      EMULATOR_GRAPHICS: ${{ matrix.api == '37.0' && '-gpu software' || '-gpu swiftshader_indirect' }}
       TEST_FILTER: ${{ github.event.inputs.test_filter }}
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +69,16 @@ jobs:
       - name: Build debug app + test APKs
         run: ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
 
+      - name: Prepare Android 17 emulator snapshot workaround
+        if: matrix.api == '37.0'
+        run: |
+          mkdir -p /tmp/snapshot-control/classes /tmp/snapshot-control/dex
+          javac --release 8 -d /tmp/snapshot-control/classes .github/ci/DisableTaskSnapshots.java
+          D8_PATH=$(find "$ANDROID_HOME/build-tools" -name d8 -type f | sort -V | tail -n 1)
+          test -n "$D8_PATH"
+          "$D8_PATH" --min-api 26 --output /tmp/snapshot-control/dex /tmp/snapshot-control/classes/DisableTaskSnapshots.class
+          jar cf /tmp/snapshot-control.jar -C /tmp/snapshot-control/dex classes.dex
+
       - name: AVD cache
         uses: actions/cache@v4
         id: avd-cache
@@ -77,7 +86,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-pixel_6-8gb-graphics-v3
+          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-pixel_6-8gb-graphics-v4
 
       - name: Create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -96,6 +105,7 @@ jobs:
           emulator-boot-timeout: 900
           script: |
             if [ "$API_LEVEL" = "37.0" ]; then adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton && adb shell cmd overlay disable com.android.internal.systemui.navbar.gestural; fi
+            if [ "$API_LEVEL" = "37.0" ]; then bash .github/ci/configure-snapshots.sh; fi
             echo "Generated AVD snapshot for caching."
 
       # Each script line runs in its own `sh -c`; a failing line would abort the rest, so the test run
@@ -119,6 +129,7 @@ jobs:
             mkdir -p ui-test-logs && rm -f ui-test-logs/FAILED
             # Keep System UI enabled while avoiding the image's gesture-bar RegionSampling crash.
             if [ "$API_LEVEL" = "37.0" ]; then adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton && adb shell cmd overlay disable com.android.internal.systemui.navbar.gestural; fi
+            if [ "$API_LEVEL" = "37.0" ]; then bash .github/ci/configure-snapshots.sh; fi
             adb logcat -G 16M || true
             adb logcat -c || true
             # Slow CI emulators show "System UI isn't responding" dialogs that steal key events.
@@ -130,7 +141,8 @@ jobs:
             adb shell dumpsys activity exit-info com.arnav.music > ui-test-logs/exit-info.txt || true
             echo "Window focus after tests:"; adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp" || true
             echo "App errors in logcat:"; grep -E " (E|F) " ui-test-logs/logcat-full.txt | grep -iE "arnav|AndroidRuntime|compose|lifecycle|glance|IllegalState" | grep -v "TestRunner" | tail -n 120 || true
-            adb exec-out screencap -p > ui-test-logs/final-screen.png || true
+            # Guest readback itself hits the API 37 image's mapper assertion; collect logs instead.
+            if [ "$API_LEVEL" != "37.0" ]; then adb exec-out screencap -p > ui-test-logs/final-screen.png || true; fi
 
       - name: App crashes in logcat
         if: always()
