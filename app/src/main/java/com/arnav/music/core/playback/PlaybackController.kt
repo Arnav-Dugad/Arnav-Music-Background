@@ -135,7 +135,7 @@ class PlaybackController(
     private var sessionTrack: Track? = null
     private var sessionStartedAt = 0L
     private var sessionListenedMs = 0L
-    private var lastTickAt = 0L
+    private val listeningMeter = com.arnav.music.domain.history.ListeningMeter()
 
     // Smart transitions (local playback only) — see [smartTick] and [skipIntroOnNaturalStart].
     private val featuresDao: AudioFeaturesDao by lazy { GlobalContext.get().get<ArnavDatabase>().audioFeatures() }
@@ -781,10 +781,7 @@ class PlaybackController(
         if (progressJob?.isActive == true) return
         progressJob = scope.launch {
             while (isActive) {
-                val now = clock.now()
                 val s = _state.value
-                if (s.isPlaying && !s.isBuffering && lastTickAt > 0) sessionListenedMs += (now - lastTickAt).coerceIn(0, 2_000)
-                lastTickAt = now
                 if (s.engine == Engine.LOCAL) {
                     controller?.let { c ->
                         val p = Progress(c.currentPosition.coerceAtLeast(0), c.duration.takeIf { it > 0 } ?: (s.current?.durationMs ?: 0))
@@ -792,6 +789,8 @@ class PlaybackController(
                         smartTick(c, _state.value, p)
                     }
                 }
+                val speed = if (s.engine == Engine.LOCAL) controller?.playbackParameters?.speed ?: 1f else 1f
+                sessionListenedMs += listeningMeter.sample(android.os.SystemClock.elapsedRealtime(), _progress.value.positionMs, s.isPlaying, s.isBuffering, speed)
                 delay(if (s.isPlaying) 250 else 1_000)
             }
         }
@@ -801,7 +800,7 @@ class PlaybackController(
         sessionTrack = track
         sessionStartedAt = clock.now()
         sessionListenedMs = 0
-        lastTickAt = 0
+        listeningMeter.reset()
     }
 
     /** Converts the finished listen into a local PlayEvent. Under 5 s is noise and ignored. */
@@ -836,6 +835,22 @@ class PlaybackController(
         }
     }
 
+    fun stopForRestore() {
+        cancelSmartFade(restoreVolume = true)
+        persistJob?.cancel()
+        sessionTrack = null
+        controller?.stop()
+        controller?.clearMediaItems()
+        youtube.pause()
+        _state.value = PlayerState()
+        _progress.value = Progress()
+    }
+    fun reloadStoredQueue() {
+        persistJob?.cancel()
+        _state.value = PlayerState()
+        _progress.value = Progress()
+        restoreQueue()
+    }
     private fun restoreQueue() {
         runCatching {
             val raw = prefs.getString("queue", null) ?: return

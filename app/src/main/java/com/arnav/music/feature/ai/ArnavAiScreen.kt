@@ -109,6 +109,11 @@ private val examples = listOf(
 fun ArnavAiScreen(initialQuery: String, vm: ArnavAiViewModel = koinViewModel()) {
     val c = ArnavTheme.colors
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val canUndo by vm.canUndo.collectAsStateWithLifecycle()
+    val history by vm.history.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val studioNav = LocalNavigator.current
+    val motion = ArnavTheme.motion
     val chrome = LocalChromePadding.current
     var text by rememberSaveable { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -148,13 +153,26 @@ fun ArnavAiScreen(initialQuery: String, vm: ArnavAiViewModel = koinViewModel()) 
                     }
                     Spacer(Modifier.height(Space.m))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s), verticalArrangement = Arrangement.spacedBy(Space.s)) {
+                        Pill("Session controls", settings.studio.sessionControls, { studioNav.go(Routes.settings("studio")) })
+                        if (ui is AiUi.Building) Pill("Cancel build", false, vm::cancel)
+                        if (canUndo) Pill("Undo preview", false, vm::undo)
+                    }
+                    if (history.isNotEmpty()) {
+                        Spacer(Modifier.height(Space.s))
+                        Text("Recent requests", style = ArnavTheme.type.caption, color = c.contentMuted)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s), verticalArrangement = Arrangement.spacedBy(Space.s)) {
+                            history.take(4).forEach { p -> Pill(p, false, { text = p; vm.build(p) }) }
+                        }
+                    }
+                    Spacer(Modifier.height(Space.m))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s), verticalArrangement = Arrangement.spacedBy(Space.s)) {
                         examples.forEach { e -> Pill(e, false, { text = e; vm.build(e) }) }
                     }
                 }
             }
             item {
                 AnimatedContent(ui, contentKey = { it::class }, transitionSpec = {
-                    (fadeIn(tween(260)) + slideInVertically(tween(320)) { it / 12 }) togetherWith fadeOut(tween(160))
+                    (fadeIn(motion.fast()) + slideInVertically(motion.responsive()) { (it / 12 * motion.travel).toInt() }) togetherWith fadeOut(motion.fast())
                 }, label = "ai") { s ->
                     when (s) {
                         AiUi.Idle -> Box {}
@@ -209,7 +227,7 @@ private fun ModeChip(mode: AiUnavailableReason?) {
 @Composable
 private fun BuildingCard(s: AiUi.Building) {
     val c = ArnavTheme.colors
-    val t = rememberInfiniteTransition(label = "think").animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Restart), label = "p")
+    val rotation = if (ArnavTheme.motion.reduced) 0f else rememberInfiniteTransition(label = "think").animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Restart), label = "p").value
     Column(Modifier.padding(Space.gutter).fillMaxWidth().glass(GlassMaterial.Regular, RoundedCornerShape(Radius.xl)).padding(Space.xl)) {
         Text("“${s.prompt}”", style = ArnavTheme.type.title, color = c.content)
         Spacer(Modifier.height(Space.l))
@@ -221,7 +239,7 @@ private fun BuildingCard(s: AiUi.Building) {
                     if (done) Icon(Icons.Rounded.CheckCircle, null, tint = c.accent, modifier = Modifier.size(18.dp))
                     else Canvas(Modifier.size(14.dp)) {
                         drawCircle(c.content.copy(alpha = 0.15f), style = Stroke(2.dp.toPx()))
-                        if (active) drawArc(c.accent, 360f * t.value, 100f, false, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+                        if (active) drawArc(c.accent, 360f * rotation, 100f, false, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
                     }
                 }
                 Spacer(Modifier.width(Space.m))

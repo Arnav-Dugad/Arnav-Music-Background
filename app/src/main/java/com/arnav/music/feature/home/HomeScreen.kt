@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.KeyboardCommandKey
@@ -98,6 +99,7 @@ fun HomeScreen(vm: HomeViewModel = koinViewModel()) {
                         Text(state.greeting + (user?.displayName?.substringBefore(' ')?.let { ", $it" } ?: ""), style = ArnavTheme.type.display, color = c.content,
                             modifier = Modifier.semantics { heading() })
                     }
+                    ArnavIconButton(Icons.Rounded.LibraryMusic, "Customize Home", { nav.go(Routes.settings("studio")) })
                     ArnavIconButton(Icons.Rounded.KeyboardCommandKey, "Command palette", nav.openPalette)
                     Box(
                         Modifier.size(Space.touch).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "Profile") { nav.go(Routes.PROFILE) },

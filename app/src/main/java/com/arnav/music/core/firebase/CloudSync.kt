@@ -31,6 +31,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,12 +40,12 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.util.concurrent.TimeUnit
 
-enum class SyncStatus { DISABLED, IDLE, SYNCING, OFFLINE, ERROR, UP_TO_DATE }
+enum class SyncStatus { DISABLED, IDLE, SYNCING, OFFLINE, ERROR, UP_TO_DATE, ACCOUNT_BLOCKED }
 
 /**
  * Offline-first sync for likes and Arnav playlists:
  * Room is the source of truth → dirty flags → debounced batched writes → incremental pulls.
- * Listening history and on-device files never leave the device.
+ * Additional private account snapshots preserve all app-owned records and preferences.
  */
 class CloudSync(
     private val context: Context,
@@ -54,19 +55,54 @@ class CloudSync(
     private val usage: UsageMeter,
     private val clock: Clock,
     private val scope: CoroutineScope,
+    val vault: CloudVault,
 ) {
     private val mutex = Mutex()
     private var debounceJob: Job? = null
     private val prefs = context.getSharedPreferences("sync_state", Context.MODE_PRIVATE)
     private val _status = MutableStateFlow(SyncStatus.IDLE)
     val status: StateFlow<SyncStatus> = _status.asStateFlow()
-    val lastSyncedAt: Long get() = prefs.getLong("last_sync", 0L)
+    val lastSyncedAt: Long get() = uid()?.let { prefs.getLong("last_sync_" + it, 0L) } ?: 0
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+    private val _backups = MutableStateFlow<List<CloudBackup>>(emptyList())
+    val backups: StateFlow<List<CloudBackup>> = _backups.asStateFlow()
+    private var observing = false
+    private val listeners = mutableListOf<android.content.SharedPreferences.OnSharedPreferenceChangeListener>()
+    private fun bindAccount(uid: String) {
+        val owner = prefs.getString("data_owner", null)
+            ?: prefs.all.keys.firstOrNull { it.startsWith("likes_pulled_") }?.removePrefix("likes_pulled_")
+        check(owner == null || owner == uid) {
+            "This device contains another account's data. Restore this account's backup, or clear this app's storage before syncing."
+        }
+        if (!prefs.contains("data_owner")) prefs.edit().putString("data_owner", uid).commit()
+    }
+    fun startObserving() {
+        if (observing || !gate.isAvailable) return
+        observing = true
+        db.invalidationTracker.addObserver(object : androidx.room.InvalidationTracker.Observer(*com.arnav.music.core.backup.UserDataArchive.TABLES.toTypedArray()) {
+            override fun onInvalidated(tables: Set<String>) { requestSync(30_000) }
+        })
+        scope.launch { settings.settings.collect { requestSync(30_000) } }
+        com.arnav.music.core.backup.UserDataArchive.PREFS.filter { it !in listOf("usage_meter", "widget_snapshot") }.forEach { name ->
+            val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> requestSync(30_000) }
+            listeners += listener
+            context.getSharedPreferences(name, Context.MODE_PRIVATE).registerOnSharedPreferenceChangeListener(listener)
+        }
+        FirebaseAuth.getInstance().addAuthStateListener {
+            _backups.value = emptyList()
+            _error.value = null
+            requestSync(0)
+        }
+    }
 
     private fun uid(): String? = if (gate.isAvailable) FirebaseAuth.getInstance().currentUser?.uid else null
     private fun firestore() = FirebaseFirestore.getInstance()
 
     /** Coalesces bursts of local edits into one write batch a few seconds later. */
+    @Synchronized
     fun requestSync(delayMs: Long = 4_000) {
+        if (debounceJob?.isActive == true && delayMs > 0) return
         debounceJob?.cancel()
         debounceJob = scope.launch {
             delay(delayMs)
@@ -79,8 +115,8 @@ class CloudSync(
         val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).setRequiresBatteryNotLow(true).build()
         val wm = WorkManager.getInstance(context)
         wm.enqueueUniquePeriodicWork(
-            "cloud-sync", ExistingPeriodicWorkPolicy.KEEP,
-            PeriodicWorkRequestBuilder<SyncWorker>(12, TimeUnit.HOURS).setConstraints(constraints).build(),
+            "cloud-sync", ExistingPeriodicWorkPolicy.UPDATE,
+            PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES).setConstraints(constraints).build(),
         )
         wm.enqueueUniqueWork(
             "cloud-sync-once", ExistingWorkPolicy.KEEP,
@@ -89,18 +125,30 @@ class CloudSync(
     }
 
     suspend fun syncNow(): Result<Unit> = mutex.withLock {
+        settings.loaded.first { it }
         val uid = uid()
         if (uid == null || !settings.settings.value.cloudSync) {
             _status.value = SyncStatus.DISABLED
             return Result.success(Unit)
         }
+        val binding = runCatching { bindAccount(uid) }
+        if (binding.isFailure) {
+            _error.value = binding.exceptionOrNull()?.message
+            _status.value = SyncStatus.ACCOUNT_BLOCKED
+            return binding
+        }
+        _error.value = null
         _status.value = SyncStatus.SYNCING
         val result = runCatching {
             syncLikes(uid)
             syncPlaylists(uid)
-            prefs.edit().putLong("last_sync", clock.now()).apply()
+            check(uid() == uid) { "Account changed during sync" }
+            vault.save(uid)
+            refreshBackups().getOrThrow()
+            prefs.edit().putLong("last_sync_" + uid, clock.now()).apply()
         }
         _status.value = if (result.isSuccess) SyncStatus.UP_TO_DATE else {
+            _error.value = result.exceptionOrNull()?.message ?: "Cloud sync failed"
             Log.w("sync failed", result.exceptionOrNull())
             if (result.exceptionOrNull() is com.google.firebase.FirebaseNetworkException) SyncStatus.OFFLINE else SyncStatus.ERROR
         }
@@ -202,10 +250,14 @@ class CloudSync(
     }
 
     /** Deletes everything Arnav Music stored in the cloud for this user. */
-    suspend fun deleteCloudProfile(): Result<Unit> = runCatching {
-        val uid = uid() ?: return@runCatching
+    suspend fun deleteCloudProfile(): Result<Unit> = mutex.withLock { runCatching {
+        val uid = uid() ?: error("Sign in first")
+        settings.update { it.copy(cloudSync = false) }
+        settings.settings.first { !it.cloudSync }
+        debounceJob?.cancel()
+        WorkManager.getInstance(context).cancelUniqueWork("cloud-sync-once")
         val userDoc = firestore().collection("users").document(uid)
-        for (sub in listOf("likes", "playlists")) {
+        for (sub in listOf("likes", "playlists", "backups", "vaultChunks", "devices")) {
             while (true) {
                 val docs = userDoc.collection(sub).limit(400).get().await()
                 if (docs.isEmpty) break
@@ -216,13 +268,45 @@ class CloudSync(
             }
         }
         userDoc.delete().await()
-        prefs.edit().clear().apply()
+        prefs.edit().remove("likes_pulled_" + uid).remove("pl_pulled_" + uid).remove("last_sync_" + uid).apply()
+        _backups.value = emptyList()
+        _status.value = SyncStatus.DISABLED
+    } }
+
+    suspend fun refreshBackups(): Result<Unit> = runCatching {
+        val uid = uid() ?: error("Sign in to view backups")
+        val list = vault.list(uid)
+        check(uid() == uid) { "Account changed" }
+        _backups.value = list
+    }
+    suspend fun previewBackup(backup: CloudBackup): Result<com.arnav.music.core.backup.UserArchive> = runCatching {
+        val uid = uid() ?: error("Sign in first")
+        vault.download(uid, backup).also { check(uid() == uid) { "Account changed" } }
+    }
+    suspend fun restoreBackup(snapshot: com.arnav.music.core.backup.UserArchive, accountUid: String, beforeRestore: () -> Unit): Result<Unit> = mutex.withLock {
+        runCatching {
+            check(uid() == accountUid) { "Account changed. Open the preview again." }
+            vault.archive.validate(snapshot)
+            val previous = vault.archive.capture()
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                java.io.File(context.filesDir, "restore-checkpoint.gz").writeBytes(com.arnav.music.core.backup.ArchiveCodec.encode(previous))
+            }
+            beforeRestore()
+            try { vault.archive.restore(snapshot) } catch (e: Exception) {
+                runCatching { vault.archive.restore(previous) }
+                throw e
+            }
+            prefs.edit().putString("data_owner", accountUid).remove("likes_pulled_" + accountUid).remove("pl_pulled_" + accountUid).commit()
+            _error.value = null
+            _status.value = SyncStatus.IDLE
+        }
     }
 
     suspend fun writeProfile(displayName: String?, settingsJson: String) {
         val uid = uid() ?: return
         if (!settings.settings.value.cloudSync) return
         runCatching {
+            bindAccount(uid)
             firestore().collection("users").document(uid).set(mapOf(
                 "displayName" to displayName?.take(80),
                 "settings" to settingsJson.take(8_000),

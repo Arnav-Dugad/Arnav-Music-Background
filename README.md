@@ -1,3 +1,5 @@
+> New: Listening Studio, AI preview undo/cancel, advanced library search, rule playlists and complete app-data snapshots. **Deploy the updated Firestore rules before using cloud backups.** [Setup and controls](docs/FIREBASE_DATA.md). [Remaining roadmap](docs/PREMIUM_ROADMAP.md).
+
 <div align="center">
 
 # Arnav Music — Background edition
@@ -138,7 +140,7 @@ Arnav Music never requires a credit card, a paid plan or a paid API. It never en
 | Capability | Runs on | What happens when the free limit is reached |
 |---|---|---|
 | Playback of on-device music | **Device only** | Nothing — no limits |
-| Library, likes, playlists, history, queue, settings | **Device (Room/DataStore)** | Nothing — no limits |
+| Library, likes, playlists, history, queue, settings | **Device (Room/DataStore), optional private Firestore backups** | Backup limits and quota usage are documented in docs/FIREBASE_DATA.md |
 | Recommendations, smart playlists, Taste DNA, recaps, constellation, Time Machine | **Device only** (pure Kotlin `:core:domain`) | Nothing — no limits |
 | Arnav AI fallback engine (moods, durations, negation, energy curves) | **Device only** | Nothing — always available |
 | YouTube search, trending, playlists, metadata | **YouTube Data API v3** with *your* key (default 10,000 units/day) | Searches are cached and reused; near the limit the app conserves (week-old cache counts as fresh); at the limit it serves saved results and explains why. Resets daily. |
@@ -238,8 +240,8 @@ Optional repository secrets (Settings → Secrets → Actions):
 Without a private key, releases are signed with the **public community key** in `keystore/` so updates install over each other. It is intentionally public and must not be used for a Play Store listing.
 
 ## Privacy
-- Listening history, searches, Taste DNA and on-device files **never leave the device**.
-- Synced (only when signed in and sync is on): liked YouTube tracks and Arnav playlists, in your private Firestore space, protected by [strict rules](firebase/firestore.rules) with [emulator tests](firebase/tests/rules.test.mjs).
+- App data stays local first. When signed in with sync enabled, history, searches, lyrics, analysis, preferences and other app records are included in private account backups. Local audio binaries and credentials are excluded.
+- Live sync merges YouTube likes/playlist entries. Full snapshots back up all 16 database tables, preferences, queue and saved analysis; restore is explicit. See [data scope and deployment controls](docs/FIREBASE_DATA.md) and [premium implementation status](docs/PREMIUM_ROADMAP.md).
 - Arnav AI sends the text you type, plus (if you allow) your top artist names and style hints. With *AI lyrics when none exist* on, it also sends the audio of an on-device song (or the public YouTube link) when it writes lyrics for that song.
 - Analytics is **off by default**; when on, it records feature usage only — never titles, artists or search text.
 - Settings → Privacy shows all of this and lets you clear search history, listening history, AI personalization, disconnect YouTube, delete the cloud profile, or delete the account.

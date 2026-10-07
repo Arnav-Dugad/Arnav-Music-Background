@@ -26,6 +26,18 @@ enum class ArtworkMotion { OFF, SUBTLE, DYNAMIC }
 enum class PerformanceMode { AUTOMATIC, MAXIMUM, BALANCED, BATTERY_SAVER }
 enum class LibraryLayout { LIST, GRID, COMPACT }
 
+@Serializable
+data class StudioSettings(
+    val homeOrder: List<String> = emptyList(),
+    val hiddenHome: Set<String> = emptySet(),
+    val sessionControls: Boolean = false,
+    val sessionMinutes: Int = 45,
+    val sessionEnergy: Float = 0.55f,
+    val sessionFamiliarity: Float = 0.6f,
+    val sessionDiversity: Float = 0.7f,
+    val sessionCurve: com.arnav.music.domain.intelligence.EnergyCurve = com.arnav.music.domain.intelligence.EnergyCurve.FLAT,
+)
+
 /** User-facing preferences. Synced to the cloud profile only when the user opts in. */
 @Serializable
 data class AppSettings(
@@ -106,12 +118,16 @@ data class AppSettings(
     val coverParticles: Boolean = true,
     /** A haptic pulse on each beat drop of songs on this phone. */
     val beatDropHaptics: Boolean = false,
+    val studio: StudioSettings = StudioSettings(),
 )
 
 class SettingsRepository(private val context: Context, scope: CoroutineScope) {
     private val store: DataStore<Preferences> get() = context.settingsStore
 
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private object K {
+        val studio = stringPreferencesKey("studio")
+        val snapshot = stringPreferencesKey("settings_snapshot")
         val onboarding = booleanPreferencesKey("onboarding_done")
         val guest = booleanPreferencesKey("guest_mode")
         val theme = stringPreferencesKey("theme")
@@ -179,6 +195,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         .map { p ->
             val d = AppSettings()
             AppSettings(
+                studio = p[K.studio]?.let { runCatching { json.decodeFromString<StudioSettings>(it) }.getOrNull() } ?: d.studio,
                 onboardingDone = p[K.onboarding] ?: d.onboardingDone,
                 guestMode = p[K.guest] ?: d.guestMode,
                 themeMode = p.enum(K.theme, d.themeMode),
@@ -239,7 +256,10 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
 
     suspend fun update(transform: (AppSettings) -> AppSettings) {
         store.edit { p ->
-            val s = transform(settings.value)
+            val current = p[K.snapshot]?.let { runCatching { json.decodeFromString<AppSettings>(it) }.getOrNull() } ?: settings.value
+            val s = transform(current)
+            p[K.snapshot] = json.encodeToString(AppSettings.serializer(), s)
+            p[K.studio] = json.encodeToString(StudioSettings.serializer(), s.studio)
             p[K.onboarding] = s.onboardingDone
             p[K.guest] = s.guestMode
             p[K.theme] = s.themeMode.name

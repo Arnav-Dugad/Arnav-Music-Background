@@ -50,23 +50,25 @@ class SearchRepository(
 
     val recent: Flow<List<String>> = searchDao.recent().map { l -> l.map { it.display } }
 
-    suspend fun localMatches(query: String): List<Track> {
+    suspend fun localMatches(query: String, limit: Int? = null): List<Track> {
         if (query.isBlank()) return emptyList()
         // Snapshot, not the cached flow: on-device songs must match even when no screen observes them.
-        val known = (library.searchKnown(query.trim()) + library.localTracksSnapshot())
-        return known.asSequence()
-            .map { it to maxOf(QueryNormalizer.matchScore(query, it.title), QueryNormalizer.matchScore(query, it.artist) * 0.95f) }
-            .filter { it.second >= 0.5f }
-            .sortedByDescending { it.second }
-            .map { it.first }
-            .distinctBy { it.id }
-            .take(8)
-            .toList()
+        val parsed = com.arnav.music.domain.search.LibraryQuery.parse(query)
+        val known = library.allKnownTracks() + library.localTracksSnapshot()
+        return known.asSequence().distinctBy { it.id }.filter(parsed::accepts)
+            .map { it to if (parsed.text.isBlank()) 1f else maxOf(QueryNormalizer.matchScore(parsed.text, it.title), QueryNormalizer.matchScore(parsed.text, it.artist) * 0.95f) }
+            .filter { it.second >= 0.5f }.sortedByDescending { it.second }.map { it.first }
+            .take(limit ?: if (parsed.structured) 100 else 8).toList()
     }
 
     fun search(query: String, filter: SearchFilter, remote: Boolean): Flow<SearchState> = flow {
         val local = localMatches(query)
         emit(SearchState.Instant(query, local))
+        val parsed = com.arnav.music.domain.search.LibraryQuery.parse(query)
+        if (parsed.structured) {
+            if (parsed.error != null) emit(SearchState.Failed(query, MusicError.Unknown(parsed.error), local))
+            return@flow
+        }
         val cached = youtube.cached(query, filter)
         if (cached != null) emit(SearchState.Results(shape(cached, filter), local, refreshing = remote && youtube.shouldRevalidate(cached)))
         if (!remote || !QueryNormalizer.isRemoteWorthy(query)) return@flow

@@ -64,6 +64,103 @@ service cloud.firestore {
           && request.resource.data.tracks.size() <= 500;
       }
 
+      match /vaultChunks/{chunkId} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && chunkId.matches('^[0-9a-f]{64}
+      match /{rest=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
+          && onlyKeys(['hash', 'payload', 'bytes', 'schema', 'createdAt'])
+          && request.resource.data.hash == chunkId
+          && str(request.resource.data.payload, 409600)
+          && request.resource.data.bytes is int && request.resource.data.bytes > 0 && request.resource.data.bytes <= 307200
+          && request.resource.data.schema == 1 && request.resource.data.createdAt == request.time;
+        allow update: if false;
+      }
+      match /backups/{backupId} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && onlyKeys(['schema', 'roomVersion', 'deviceId', 'deviceLabel', 'appVersion', 'createdAt', 'publishedAt', 'hash', 'bytes', 'chunkIds', 'counts'])
+          && request.resource.data.schema == 1 && request.resource.data.roomVersion == 6
+          && request.resource.data.deviceId.matches('^[0-9a-f-]{36}
+      match /{rest=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
+          && request.resource.data.hash.matches('^[0-9a-f]{64}
+      match /{rest=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
+          && backupId == request.resource.data.deviceId + '_' + request.resource.data.hash
+          && str(request.resource.data.deviceLabel, 100) && str(request.resource.data.appVersion, 40)
+          && ts(request.resource.data.createdAt) && request.resource.data.publishedAt == request.time
+          && request.resource.data.bytes is int && request.resource.data.bytes > 0 && request.resource.data.bytes <= 67108864
+          && request.resource.data.chunkIds is list && request.resource.data.chunkIds.size() > 0 && request.resource.data.chunkIds.size() <= 256
+          && request.resource.data.counts is map && request.resource.data.counts.keys().hasOnly(['tracks','likes','playlists','playlist_tracks','play_events','search_cache','recent_searches','ai_cache','kv_sync','lyrics','audio_features','pending_matches','import_history','tag_overrides','rec_feedback','skip_marks'])
+          && request.resource.data.counts.tracks is int && request.resource.data.counts.tracks >= 0 && request.resource.data.counts.tracks <= 1000000
+          && request.resource.data.counts.likes is int && request.resource.data.counts.likes >= 0 && request.resource.data.counts.likes <= 1000000
+          && request.resource.data.counts.playlists is int && request.resource.data.counts.playlists >= 0 && request.resource.data.counts.playlists <= 1000000
+          && request.resource.data.counts.playlist_tracks is int && request.resource.data.counts.playlist_tracks >= 0 && request.resource.data.counts.playlist_tracks <= 1000000
+          && request.resource.data.counts.play_events is int && request.resource.data.counts.play_events >= 0 && request.resource.data.counts.play_events <= 1000000
+          && request.resource.data.counts.search_cache is int && request.resource.data.counts.search_cache >= 0 && request.resource.data.counts.search_cache <= 1000000
+          && request.resource.data.counts.recent_searches is int && request.resource.data.counts.recent_searches >= 0 && request.resource.data.counts.recent_searches <= 1000000
+          && request.resource.data.counts.ai_cache is int && request.resource.data.counts.ai_cache >= 0 && request.resource.data.counts.ai_cache <= 1000000
+          && request.resource.data.counts.kv_sync is int && request.resource.data.counts.kv_sync >= 0 && request.resource.data.counts.kv_sync <= 1000000
+          && request.resource.data.counts.lyrics is int && request.resource.data.counts.lyrics >= 0 && request.resource.data.counts.lyrics <= 1000000
+          && request.resource.data.counts.audio_features is int && request.resource.data.counts.audio_features >= 0 && request.resource.data.counts.audio_features <= 1000000
+          && request.resource.data.counts.pending_matches is int && request.resource.data.counts.pending_matches >= 0 && request.resource.data.counts.pending_matches <= 1000000
+          && request.resource.data.counts.import_history is int && request.resource.data.counts.import_history >= 0 && request.resource.data.counts.import_history <= 1000000
+          && request.resource.data.counts.tag_overrides is int && request.resource.data.counts.tag_overrides >= 0 && request.resource.data.counts.tag_overrides <= 1000000
+          && request.resource.data.counts.rec_feedback is int && request.resource.data.counts.rec_feedback >= 0 && request.resource.data.counts.rec_feedback <= 1000000
+          && request.resource.data.counts.skip_marks is int && request.resource.data.counts.skip_marks >= 0 && request.resource.data.counts.skip_marks <= 1000000;
+        allow update: if false;
+      }
+      match /devices/{deviceId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && deviceId.matches('^[0-9a-f-]{36}
+      match /{rest=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
+          && onlyKeys(['deviceLabel', 'appVersion', 'latestBackup', 'updatedAt', 'schema'])
+          && str(request.resource.data.deviceLabel, 100) && str(request.resource.data.appVersion, 40)
+          && str(request.resource.data.latestBackup, 110)
+          && request.resource.data.schema == 1 && request.resource.data.updatedAt == request.time
+          && getAfter(/databases/$(database)/documents/users/$(uid)/backups/$(request.resource.data.latestBackup)).data.deviceId == deviceId;
+      }
+
       // Anything not explicitly modelled is denied.
       match /{rest=**} {
         allow read, write: if false;

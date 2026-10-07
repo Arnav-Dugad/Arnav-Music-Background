@@ -46,6 +46,19 @@ object QueryNormalizer {
         if (c.contains(q)) return 0.6f
         val qt = q.split(' ').filter { it.isNotEmpty() }
         val hits = qt.count { t -> words.any { it.startsWith(t) } }
-        return if (qt.isEmpty()) 0f else 0.5f * hits / qt.size
+        val prefix = if (qt.isEmpty()) 0f else 0.5f * hits / qt.size
+        val fuzzyHits = qt.count { t -> t.length >= 4 && words.any { w -> editDistance(t, w) <= (if (t.length >= 8) 2 else 1) } }
+        return maxOf(prefix, if (qt.isNotEmpty() && fuzzyHits == qt.size) 0.55f else 0f)
+    }
+    private fun editDistance(a: String, b: String): Int {
+        if (kotlin.math.abs(a.length - b.length) > 2 || a.length > 80 || b.length > 80) return 99
+        val d = Array(a.length + 1) { IntArray(b.length + 1) }
+        for (i in 0..a.length) d[i][0] = i
+        for (j in 0..b.length) d[0][j] = j
+        for (i in 1..a.length) for (j in 1..b.length) {
+            d[i][j] = minOf(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+            if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) d[i][j] = minOf(d[i][j], d[i - 2][j - 2] + 1)
+        }
+        return d[a.length][b.length]
     }
 }

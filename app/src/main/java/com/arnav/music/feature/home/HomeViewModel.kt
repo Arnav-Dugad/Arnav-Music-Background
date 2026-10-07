@@ -27,11 +27,21 @@ class HomeViewModel(
     library: LibraryRepository,
     network: NetworkMonitor,
     private val clock: Clock,
+    private val settings: com.arnav.music.core.settings.SettingsRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(HomeUiState(greeting = IntelligenceRepository.greeting(clock.now())))
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
+    private var rawSections = emptyList<HomeSection>()
+    private fun applyLayout() {
+        val layout = settings.settings.value.studio
+        fun category(key: String) = if (key.startsWith("tm_")) "tm" else key
+        val sections = rawSections.filter { category(it.key) !in layout.hiddenHome }
+            .sortedBy { layout.homeOrder.indexOf(category(it.key)).let { n -> if (n < 0) Int.MAX_VALUE else n } }
+        _state.value = HomeUiState(false, IntelligenceRepository.greeting(clock.now()), sections)
+    }
     init {
+        viewModelScope.launch { settings.settings.collect { if (rawSections.isNotEmpty()) applyLayout() } }
         viewModelScope.launch {
             // Recompose the home when listening, likes, local files or connectivity change —
             // debounced so playback doesn't constantly reshuffle the page.
@@ -48,7 +58,7 @@ class HomeViewModel(
 
     fun refresh() = viewModelScope.launch {
         intelligence.invalidate()
-        val sections = runCatching { intelligence.composeHome() }.getOrDefault(_state.value.sections)
-        _state.value = HomeUiState(false, IntelligenceRepository.greeting(clock.now()), sections)
+        rawSections = runCatching { intelligence.composeHome() }.getOrDefault(rawSections)
+        applyLayout()
     }
 }

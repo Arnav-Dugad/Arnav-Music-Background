@@ -67,7 +67,9 @@ val appModule = module {
     single { RemoteConfigRepository(get()) }
     single { Analytics(androidContext(), get()) }
     single { AuthRepository(get()) }
-    single { CloudSync(androidContext(), get(), get(), get(), get(), get(), get()) }
+    single { com.arnav.music.core.backup.UserDataArchive(androidContext(), get(), get()) }
+    single { com.arnav.music.core.firebase.CloudVault(androidContext(), get()) }
+    single { CloudSync(androidContext(), get(), get(), get(), get(), get(), get(), get()) }
     single { PerformanceManager(androidContext(), get(), get()) }
     single { LocalMediaSource(androidContext()) }
     single {
@@ -118,16 +120,16 @@ val appModule = module {
 
     viewModel { AppViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { AuthViewModel(get(), get()) }
-    viewModel { HomeViewModel(get(), get(), get(), get()) }
+    viewModel { HomeViewModel(get(), get(), get(), get(), get()) }
     viewModel { ExploreViewModel(get(), get(), get(), get()) }
     viewModel { LibraryViewModel(get(), get(), get()) }
     viewModel { com.arnav.music.feature.duplicates.DuplicatesViewModel(androidContext(), get()) }
     viewModel { com.arnav.music.feature.imports.ImportHistoryViewModel(get(), get()) }
     viewModel { com.arnav.music.feature.library.YouTubeImportViewModel(get()) }
-    viewModel { ArnavAiViewModel(get(), get(), get(), get()) }
+    viewModel { ArnavAiViewModel(get(), get(), get(), get(), androidContext()) }
     viewModel { InsightsViewModel(get(), get()) }
     viewModel { com.arnav.music.feature.insights.ListeningStatsViewModel(androidContext(), get(), get(), get()) }
-    viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { SettingsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { CollectionViewModel(get(), get(), get(), get(), get(), get()) }
     viewModel { com.arnav.music.feature.library.PlaylistImportViewModel(androidContext(), get(), get(), get(), get(), get()) }
     viewModel { com.arnav.music.feature.moments.MomentViewModel(get(), get()) }

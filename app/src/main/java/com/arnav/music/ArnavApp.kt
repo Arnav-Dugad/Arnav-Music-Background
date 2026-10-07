@@ -94,6 +94,7 @@ class ArnavApp : Application(), SingletonImageLoader.Factory {
                     .collect { com.arnav.music.widget.Widgets.refreshAll(this@ArnavApp, it) }
             }
             get<RemoteConfigRepository>().refresh()
+            get<CloudSync>().startObserving()
             get<CloudSync>().schedulePeriodic()
         }
     }

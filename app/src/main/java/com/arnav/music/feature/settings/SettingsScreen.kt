@@ -97,7 +97,7 @@ fun SettingsScreen(page: String, vm: SettingsViewModel = koinViewModel()) {
         "appearance" -> "Appearance"; "playback" -> "Playback"; "ai" -> "Arnav AI"; "sources" -> "Sources"
         "privacy" -> "Privacy"; "usage" -> "Usage & quotas"; "about" -> "About"; "accessibility" -> "Accessibility"
         "performance" -> "Performance"; "sync" -> "Data & sync"; "account" -> "Account"; "notifications" -> "Notifications"
-        "developer" -> "Developer"; "library" -> "Library"; "updates" -> "App updates"; else -> "Settings"
+        "studio" -> "Listening studio"; "developer" -> "Developer"; "library" -> "Library"; "updates" -> "App updates"; else -> "Settings"
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = chrome.calculateBottomPadding() + Space.xl)) {
         item {
@@ -118,7 +118,8 @@ fun SettingsScreen(page: String, vm: SettingsViewModel = koinViewModel()) {
                 "about" -> AboutPage()
                 "accessibility" -> AccessibilityPage(vm)
                 "performance" -> PerformancePage(vm)
-                "sync" -> SyncPage(vm)
+                "sync" -> CloudDataPage(vm)
+                "studio" -> StudioPage(vm)
                 "account" -> AccountPage(vm)
                 "notifications" -> NotificationsPage(vm)
                 "library" -> LibraryPage(vm)
@@ -140,6 +141,8 @@ private fun RootPage() {
             NavRow(Icons.Rounded.AccountCircle, "Account", "Sign in, sync, profile", c.accent) { go("account") }
         }
         SettingsGroup("Experience") {
+            NavRow(Icons.Rounded.AutoAwesome, "Listening studio", "Home layout, AI controls, rule playlists", c.accent) { go("studio") }
+            Divider()
             NavRow(Icons.Rounded.Palette, "Appearance", "Theme, accent, Glass, motion", Color(0xFF8C7CFF)) { go("appearance") }
             Divider()
             NavRow(Icons.Rounded.PlayCircle, "Playback", "Fades, speed, equalizer", Color(0xFF52D6C3)) { go("playback") }
@@ -370,7 +373,7 @@ private fun LibraryPage(vm: SettingsViewModel) {
                 runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
         }
-        SettingsGroup("Audio analysis", footer = "Measures tempo, loudness and energy of songs on this phone, on this phone. Powers beat-synced light, energy-aware ordering and the BPM shown for each song. Nothing is uploaded.") {
+        SettingsGroup("Audio analysis", footer = "Measures tempo, loudness and energy of songs on this phone, on this phone. Powers beat-synced light, energy-aware ordering and the BPM shown for each song. Saved analysis is included in private account backups when cloud sync is enabled.") {
             val s by vm.settings.collectAsStateWithLifecycle()
             val dao = org.koin.compose.koinInject<com.arnav.music.core.db.ArnavDatabase>().audioFeatures()
             val analyzedFlow = androidx.compose.runtime.remember(dao) { dao.analyzedCount() }
@@ -433,23 +436,6 @@ private fun PerformancePage(vm: SettingsViewModel) {
 }
 
 @Composable
-private fun SyncPage(vm: SettingsViewModel) {
-    val s by vm.settings.collectAsStateWithLifecycle()
-    val user by vm.user.collectAsStateWithLifecycle()
-    val status by vm.syncStatus.collectAsStateWithLifecycle()
-    Column {
-        SettingsGroup(footer = "Synced: liked songs (YouTube tracks) and Arnav playlists. Never synced: listening history, searches, on-device files. Writes are batched to stay inside Firebase's free plan.") {
-            ToggleRow("Cloud sync", s.cloudSync, { v -> vm.update { it.copy(cloudSync = v) } }, if (user == null) "Sign in to sync across devices" else "Signed in as ${user?.email ?: "you"}", enabled = vm.cloudAvailable)
-            Divider()
-            InfoRow("Status", status.name.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase))
-            InfoRow("Last synced", if (vm.lastSyncedAt == 0L) "Never" else Formatters.relative(vm.lastSyncedAt, System.currentTimeMillis()))
-            Divider()
-            ActionRowS("Sync now", enabled = user != null && s.cloudSync) { vm.syncNow() }
-        }
-    }
-}
-
-@Composable
 private fun NotificationsPage(vm: SettingsViewModel) {
     val s by vm.settings.collectAsStateWithLifecycle()
     Column {
@@ -467,7 +453,7 @@ private fun AccountPage(vm: SettingsViewModel) {
     Column {
         val u = user
         if (u == null) {
-            SettingsGroup(footer = if (vm.cloudAvailable) "An account is optional. It syncs likes and playlists between devices." else "Cloud accounts aren't configured in this build. Everything works locally.") {
+            SettingsGroup(footer = if (vm.cloudAvailable) "An account is optional. It syncs likes and playlists, and privately backs up your app data." else "Cloud accounts aren't configured in this build. Everything works locally.") {
                 ActionRowS("Sign in or create account", enabled = vm.cloudAvailable) { nav.go(Routes.AUTH) }
             }
         } else {
@@ -492,9 +478,9 @@ private fun PrivacyPage(vm: SettingsViewModel) {
     val c = ArnavTheme.colors
     Column {
         SettingsGroup("Where your data lives") {
-            PrivacyFact("On this device only", "Listening history, Taste DNA, recaps, search history, saved results, on-device music, settings")
+            PrivacyFact("Stored on this device", "App data is kept locally first. Local audio files, API keys and sign-in credentials are excluded from Firestore backups.")
             Divider()
-            PrivacyFact("Synced to your account", if (user != null && s.cloudSync) "Liked YouTube songs and Arnav playlists (Firebase, your private space)" else "Nothing — not signed in or sync is off")
+            PrivacyFact("Synced to your account", if (user != null && s.cloudSync) "Likes, playlists, history, searches, AI responses, lyrics, metadata edits, preferences and queue snapshots. Older backups retain data until deleted." else "Nothing — not signed in or sync is off")
             Divider()
             PrivacyFact("What Arnav AI sees", if (s.aiEnabled) "The request you type" + (if (s.aiPersonalization) ", your top artist names and style hints" else "") + (if (s.autoAiLyrics) ", and the audio (or YouTube link) of songs it writes lyrics for" else "") else "Nothing — cloud AI is off")
             Divider()
@@ -514,7 +500,7 @@ private fun PrivacyPage(vm: SettingsViewModel) {
             ActionRowS("Disconnect YouTube", "Removes your API key from this device", destructive = true) { vm.disconnectYouTube() }
             if (user != null) {
                 Divider()
-                ActionRowS("Delete cloud profile", "Removes synced likes and playlists from Firebase", destructive = true) { confirm = "cloud" }
+                ActionRowS("Delete cloud profile", "Deletes all account backups, chunks, devices, likes and playlists", destructive = true) { confirm = "cloud" }
                 Divider()
                 ActionRowS("Delete account", "Permanently deletes your account and cloud data", destructive = true) { confirm = "account" }
             }
@@ -524,7 +510,7 @@ private fun PrivacyPage(vm: SettingsViewModel) {
         AlertDialog(
             onDismissRequest = { confirm = null }, containerColor = c.surfaceRaised,
             title = { Text(when (what) { "search" -> "Clear search history?"; "history" -> "Clear listening history?"; "cloud" -> "Delete cloud profile?"; else -> "Delete your account?" }) },
-            text = { Text(when (what) { "account" -> "This permanently deletes your Arnav Music account and everything synced. Data on this device stays until you clear it. You may need to sign in again first."; "cloud" -> "Synced likes and playlists will be removed from the cloud. They remain on this device."; else -> "This can't be undone." }) },
+            text = { Text(when (what) { "account" -> "This permanently deletes your Arnav Music account and everything synced. Data on this device stays until you clear it. You may need to sign in again first."; "cloud" -> "All account backups, chunks, devices, likes and playlists will be deleted. Cloud sync turns off to prevent immediate re-upload. Local data stays."; else -> "This can't be undone." }) },
             confirmButton = {
                 TextButton({
                     when (what) { "search" -> vm.clearSearchHistory(); "history" -> vm.clearListeningHistory(); "cloud" -> vm.deleteCloudProfile(); "account" -> vm.deleteAccount(activity) }

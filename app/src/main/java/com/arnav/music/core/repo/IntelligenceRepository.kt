@@ -217,7 +217,8 @@ class IntelligenceRepository(
     }
 
     /** Arnav AI session: AI (optional) interprets → real search resolves → deterministic builder orders. */
-    suspend fun buildSession(request: String): SessionResult {
+    suspend fun buildSession(request: String, onPhase: (Int) -> Unit = {}): SessionResult {
+        onPhase(0)
         val now = clock.now()
         val profile = profile()
         val s = settings.settings.value
@@ -245,7 +246,15 @@ class IntelligenceRepository(
         } else aiReason = AiUnavailableReason.DISABLED_BY_USER
 
         if (aiReason != null && aiReason != AiUnavailableReason.DISABLED_BY_USER) ai.noteFallback()
+        val studio = s.studio
+        if (studio.sessionControls) constraints = constraints.copy(
+            durationMinutes = studio.sessionMinutes, energyTarget = studio.sessionEnergy,
+            familiarity = studio.sessionFamiliarity, discoveryRatio = 1f - studio.sessionFamiliarity,
+            artistDiversity = studio.sessionDiversity, energyCurve = studio.sessionCurve,
+        ).sanitized()
+        onPhase(1)
         val (candidates, searched) = resolveCandidates(constraints, profile)
+        onPhase(2)
         val session = builder.build(constraints, candidates, profile, library.likedIds.value, now)
         library.remember(session.tracks)
         return SessionResult(session, usedAi, aiReason, explanation, searched)
