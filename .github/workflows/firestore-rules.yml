@@ -2,7 +2,8 @@ name: Firestore rules
 
 on:
   push:
-    paths: [ "firebase/**", "firebase.json", ".github/workflows/firestore-rules.yml", ".github/workflows/build-and-release.yml" ]
+    branches: [ main, "claude/**" ]
+    paths-ignore: [ "**.md", "docs/**" ]
   pull_request:
     paths: [ "firebase/**", "firebase.json" ]
   workflow_dispatch:
