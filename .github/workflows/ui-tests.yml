@@ -75,7 +75,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-pixel_6-v1
+          key: avd-${{ env.API_LEVEL }}-google_apis-x86_64-pixel_6-8gb-v2
 
       - name: Create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -85,6 +85,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_6
+          disk-size: 8192M
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
@@ -101,6 +102,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_6
+          disk-size: 8192M
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
@@ -199,6 +201,8 @@ jobs:
           if summary_path:
               with open(summary_path, "a") as s:
                   s.write("### Instrumented UI tests\n\n```\n" + "\n".join(out) + "\n```\n")
+          if total == 0 or failed > 0:
+              raise SystemExit("Instrumented validation requires real passing test cases.")
           PY
 
       - name: Upload test reports and logs
