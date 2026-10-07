@@ -164,7 +164,7 @@ class YouTubePlaybackService : Service() {
                 PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS or PlaybackState.ACTION_SEEK_TO or PlaybackState.ACTION_STOP)
             .setState(status, progress.positionMs.coerceAtLeast(0), if (state.isPlaying && !state.isBuffering) 1f else 0f,
                 android.os.SystemClock.elapsedRealtime())
-            .setActiveQueueItemId(state.queue.current?.uid ?: MediaSession.QueueItem.UNKNOWN_ID)
+            .setActiveQueueItemId(state.queue.current?.uid ?: MediaSession.QueueItem.UNKNOWN_ID.toLong())
             .setExtras(android.os.Bundle().apply {
                 putBoolean("android.media.playback.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_PREVIOUS", true)
                 putBoolean("android.media.playback.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_NEXT", true)

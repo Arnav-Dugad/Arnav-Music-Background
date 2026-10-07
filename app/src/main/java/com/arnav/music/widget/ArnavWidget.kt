@@ -54,7 +54,7 @@ import kotlinx.coroutines.withContext
 import org.koin.core.context.GlobalContext
 
 class ArnavWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Responsive(setOf(DpSize(180.dp, 64.dp), DpSize(260.dp, 156.dp), DpSize(320.dp, 228.dp)))
+    override val sizeMode = SizeMode.Responsive(setOf(DpSize(180.dp, 64.dp), DpSize(260.dp, 184.dp), DpSize(320.dp, 248.dp)))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val initial = WidgetBus.current(context)
@@ -75,8 +75,8 @@ class ArnavWidget : GlanceAppWidget() {
     @Composable
     private fun Content(context: Context, s: WidgetSnapshot, art: Bitmap?) {
         val size = LocalSize.current
-        val expanded = size.height >= 150.dp
-        val spacious = size.height >= 220.dp
+        val expanded = size.height >= 180.dp
+        val spacious = size.height >= 240.dp
         val p = widgetPalette()
         val open = openPlayerAction(context)
         Column(GlanceModifier.widgetRoot(p, if (expanded) 16.dp else 8.dp)) {
