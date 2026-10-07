@@ -46,6 +46,7 @@ class YouTubePlaybackService : Service() {
     private lateinit var wakeLock: PowerManager.WakeLock
     private var hasFocus = false
     private var resumeAfterFocus = false
+    private var focusPauseSerial = -1L
     private var foreground = false
     private var metadataDuration = -1L
     private var idleJob: Job? = null
@@ -75,12 +76,13 @@ class YouTubePlaybackService : Service() {
                 when (change) {
                     AudioManager.AUDIOFOCUS_GAIN -> {
                         hasFocus = true
-                        if (resumeAfterFocus && playback.state.value.engine == Engine.YOUTUBE) {
+                        if (resumeAfterFocus && engine.pauseSerial == focusPauseSerial && playback.state.value.engine == Engine.YOUTUBE) {
                             resumeAfterFocus = false
                             promote()
                             engine.authorizePlayback(true)
                             playback.play()
                         }
+                        resumeAfterFocus = false
                     }
                     AudioManager.AUDIOFOCUS_LOSS -> {
                         resumeAfterFocus = false
@@ -90,10 +92,11 @@ class YouTubePlaybackService : Service() {
                         audio.abandonAudioFocusRequest(focusRequest)
                     }
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                        resumeAfterFocus = playback.state.value.isPlaying
+                        resumeAfterFocus = resumeAfterFocus || playback.state.value.isPlaying
                         hasFocus = false
                         engine.authorizePlayback(false)
                         playback.pause()
+                        focusPauseSerial = engine.pauseSerial
                     }
                 }
             }, Handler(Looper.getMainLooper()))

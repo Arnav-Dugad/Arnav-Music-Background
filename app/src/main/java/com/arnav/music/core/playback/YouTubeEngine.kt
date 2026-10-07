@@ -31,6 +31,9 @@ class YouTubeEngine(private val context: Context) {
     var events: Events? = null
     var currentVideoId: String? = null
         private set
+    /** Invalidates a focus-recovery request if the user pauses again during an interruption. */
+    var pauseSerial = 0L
+        private set
 
     val isAttached: Boolean get() = player != null
 
@@ -63,7 +66,7 @@ class YouTubeEngine(private val context: Context) {
         playerView()
         if (playbackAllowed) { if (pending != null) flushPending() else player?.play() }
     }
-    fun pause() { playRequested = false; pendingPlay = false; player?.pause() }
+    fun pause() { pauseSerial++; playRequested = false; pendingPlay = false; player?.pause() }
     fun seekTo(seconds: Float) {
         position = seconds
         pending = pending?.let { it.first to seconds }
